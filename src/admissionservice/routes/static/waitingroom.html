@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Waiting Room</title>
+        <style>
+            :root {
+                color-scheme: light;
+                --bg: #f6f7f9;
+                --panel: #ffffff;
+                --text: #1f2937;
+                --muted: #64748b;
+                --border: #d9dee7;
+                --accent: #0f766e;
+                --accent-soft: #d9f3ef;
+                --danger: #b42318;
+                --danger-soft: #fee4e2;
+                font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                min-height: 100vh;
+                margin: 0;
+                display: grid;
+                place-items: center;
+                background: var(--bg);
+                color: var(--text);
+            }
+
+            main {
+                width: min(92vw, 520px);
+                padding: 32px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: var(--panel);
+                box-shadow: 0 18px 50px rgba(31, 41, 55, 0.08);
+            }
+
+            .status-mark {
+                width: 52px;
+                height: 52px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                margin-bottom: 24px;
+                background: var(--accent-soft);
+            }
+
+            .status-mark::before {
+                content: "";
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: var(--accent);
+                animation: pulse 1.6s ease-in-out infinite;
+            }
+
+            body[data-state="error"] .status-mark {
+                background: var(--danger-soft);
+            }
+
+            body[data-state="error"] .status-mark::before {
+                background: var(--danger);
+                animation: none;
+            }
+
+            h1 {
+                margin: 0 0 12px;
+                font-size: 2rem;
+                line-height: 1.15;
+                letter-spacing: 0;
+            }
+
+            p {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.6;
+            }
+
+            .meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 24px;
+            }
+
+            .pill {
+                min-height: 34px;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 10px;
+                border: 1px solid var(--border);
+                border-radius: 999px;
+                color: var(--muted);
+                font-size: 0.875rem;
+            }
+
+            .meter {
+                height: 6px;
+                overflow: hidden;
+                margin-top: 28px;
+                border-radius: 999px;
+                background: #e5e7eb;
+            }
+
+            .meter span {
+                display: block;
+                width: 34%;
+                height: 100%;
+                border-radius: inherit;
+                background: var(--accent);
+                animation: slide 1.8s ease-in-out infinite;
+            }
+
+            body[data-state="error"] .meter span {
+                width: 100%;
+                background: var(--danger);
+                animation: none;
+            }
+
+            @keyframes pulse {
+                0%, 100% {
+                    transform: scale(0.82);
+                    opacity: 0.55;
+                }
+                50% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slide {
+                0% {
+                    transform: translateX(-100%);
+                }
+                50% {
+                    transform: translateX(100%);
+                }
+                100% {
+                    transform: translateX(310%);
+                }
+            }
+
+            @media (max-width: 560px) {
+                main {
+                    width: 100%;
+                    min-height: 100vh;
+                    border: 0;
+                    border-radius: 0;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    box-shadow: none;
+                }
+
+                h1 {
+                    font-size: 1.75rem;
+                }
+            }
+        </style>
+        <script src="/waitingRooms/assets/waitingroom.js" defer></script>
+    </head>
+    <body data-state="checking">
+        <main>
+            <div class="status-mark" aria-hidden="true"></div>
+            <h1 id="status-title">Checking your place</h1>
+            <p id="status-message">We are checking whether your session can continue.</p>
+            <div class="meta" aria-label="Waiting room status">
+                <span class="pill">Room <strong id="room-id">-</strong></span>
+                <span class="pill">Next check <strong id="next-check">now</strong></span>
+            </div>
+            <div class="meter" aria-hidden="true"><span></span></div>
+        </main>
+    </body>
+</html>
