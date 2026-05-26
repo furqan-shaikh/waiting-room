@@ -449,7 +449,6 @@ This project is currently an MVP and intentionally leaves several production con
 
 - Add authentication and authorization for Control Plane admin APIs.
 - Add automated tests for service, repository, Redis Function, and route behavior.
-- Move Redis connection settings and service ports into configuration.
 - Improve Admission Service error handling and API response contracts.
 - Replace TTL-only config cache invalidation with event-based updates, streaming, or pub/sub.
 - Add observability with structured logs, metrics, traces, and admission decision counters.
