@@ -461,7 +461,6 @@ This project is currently an MVP and intentionally leaves several production con
 ### Deployment
 
 - Add Docker Compose for local development.
-- Add container images for Control Plane and Admission Service.
 - Add deployment manifests for Kubernetes.
 - Add migration execution strategy for deployed environments.
 - Add environment-specific configuration for local, staging, and production.
