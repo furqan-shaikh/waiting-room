@@ -26,16 +26,24 @@ func NewWaitingRoomService(ctx context.Context) (*WaitingRoomService, error) {
 		log.Printf("Failed to initialize NewPgWaitingRoomRepository as Ping call failed: %v", err)
 		return nil, err
 	}
+	// check if the table schema exists
+	_, err = pgWaitingRoomRepository.SchemaExists(ctx)
+	if err != nil {
+		log.Printf("%v. Run migrations script to setup waitingrooms schema", err)
+		return nil, err
+	}
 	log.Printf("Successfully created Waiting Room Service")
 	return &WaitingRoomService{pgWaitingRoomRepository: pgWaitingRoomRepository}, nil
 }
 
 func (svc *WaitingRoomService) CreateWaitingRoom(ctx context.Context, request models.CreateWaitingRoomRequest) (models.WaitingRoom, error) {
 	// Validate the request
+
 	validationMessages := validateWaitingRoomRequest(request)
 	if len(validationMessages) > 0 {
 		return models.WaitingRoom{}, &models.ValidationError{Messages: validationMessages}
 	}
+	log.Printf("Successfully validated the WaitingRoomRequest")
 	room_id := uuid.New().String()
 	nowUTC := time.Now().UTC()
 

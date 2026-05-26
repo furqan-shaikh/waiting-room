@@ -38,6 +38,21 @@ func (pg *PgWaitingRoomRepository) Ping(ctx context.Context) error {
 	return pg.pgConnectionPool.Ping(ctx)
 }
 
+func (pgrepository *PgWaitingRoomRepository) SchemaExists(ctx context.Context) (bool, error) {
+	query := `SELECT TO_REGCLASS('public.waitingrooms') IS NOT NULL`
+	var exists bool
+	err := pgrepository.pgConnectionPool.QueryRow(ctx, query).Scan(&exists)
+
+	if err != nil {
+		log.Printf("Failed to validate db schema: %v", err)
+		return false, err
+	}
+	if !exists {
+		return false, errors.New("waitingrooms schema doesn't exist")
+	}
+	return exists, nil
+}
+
 func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Context, request models.WaitingRoom) (bool, error) {
 	if pgrepository.pgConnectionPool == nil {
 		return false, errors.New("Call NewRepository before invoking repository methods")
@@ -52,11 +67,13 @@ func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Conte
 		"created_at":             request.CreatedAt,
 		"updated_at":             request.UpdatedAt,
 	}
+	log.Printf("Inserting waiting room into pg table: %v", request.RoomId)
 	_, err := pgrepository.pgConnectionPool.Exec(ctx, query, args)
 	if err != nil {
 		log.Printf("Unable to insert row in waiting room: %v", err)
 		return false, err
 	}
+	log.Printf("Successfully inserted waiting room into pg table: %v", request.RoomId)
 	return true, nil
 }
 
