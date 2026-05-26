@@ -152,10 +152,10 @@ Both services use `PG_DATABASE_URL` to connect to Postgres:
 export PG_DATABASE_URL="postgres://wr:wr@localhost:5432/waitingroomdb?sslmode=disable"
 ```
 
-The migration Makefile uses `POSTGRESQL_URL`. If you do not set it, the Makefile defaults to the same local database:
+The migration Makefile uses `PG_DATABASE_URL`. If you do not set it, the Makefile defaults to the same local database:
 
 ```bash
-export POSTGRESQL_URL="postgres://wr:wr@localhost:5432/waitingroomdb?sslmode=disable"
+export PG_DATABASE_URL="postgres://wr:wr@localhost:5432/waitingroomdb?sslmode=disable"
 ```
 
 ### Run Migrations
@@ -190,6 +190,54 @@ The Control Plane listens on:
 http://localhost:3000
 ```
 
+### Run Control Plane With Docker
+
+Before running the Control Plane container, make sure Postgres is running and migrations have been applied:
+
+```bash
+cd src/controlplane
+make migrate-up
+```
+
+Build the Control Plane image from the `src` directory:
+
+```bash
+cd src
+docker build -f controlplane/Dockerfile -t waiting-room/control-plane:0.1 .
+```
+
+Run the container:
+
+```bash
+docker run --rm \
+  -p 3000:3000 \
+  -e PG_DATABASE_URL="postgres://wr:wr@host.docker.internal:5432/waitingroomdb?sslmode=disable" \
+  waiting-room/control-plane:0.1
+```
+
+When the Control Plane runs inside Docker, use `host.docker.internal` in `PG_DATABASE_URL` to connect to Postgres running on the host machine. Use `localhost` only when running the service directly on the host.
+
+In another terminal, create a waiting room:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"maxActiveUsersCount":1,"originApplication":"http://localhost:8080"}' \
+  http://localhost:3000/waitingRooms
+```
+
+Fetch a waiting room:
+
+```bash
+curl http://localhost:3000/waitingRooms/<roomId>
+```
+
+Delete a waiting room:
+
+```bash
+curl -X DELETE http://localhost:3000/waitingRooms/<roomId>
+```
+
 ### Run Admission Service
 
 ```bash
@@ -204,6 +252,41 @@ http://localhost:3333
 ```
 
 The Admission Service embeds and loads the Redis Function on startup using `FUNCTION LOAD REPLACE`.
+
+### Run Admission Service With Docker
+
+Before running the Admission Service container, make sure Postgres and Redis are running. The waiting room table should already exist, and at least one waiting room should be created through the Control Plane API.
+
+Build the Admission Service image from the `src` directory:
+
+```bash
+cd src
+docker build -f admissionservice/Dockerfile -t waiting-room/admission-service:0.1 .
+```
+
+Run the container:
+
+```bash
+docker run --rm \
+  -p 3333:3333 \
+  -e PG_DATABASE_URL="postgres://wr:wr@host.docker.internal:5432/waitingroomdb?sslmode=disable" \
+  -e REDIS_ADDRESS="host.docker.internal:6379" \
+  waiting-room/admission-service:0.1
+```
+
+When the Admission Service runs inside Docker, use `host.docker.internal` to connect to Postgres and Redis running on the host machine. Use `localhost` only when running the service directly on the host.
+
+Check admission status:
+
+```bash
+curl http://localhost:3333/waitingRooms/<roomId>/status
+```
+
+Open the waiting room app in a browser:
+
+```text
+http://localhost:3333/waitingRooms/<roomId>
+```
 
 ## API Examples
 

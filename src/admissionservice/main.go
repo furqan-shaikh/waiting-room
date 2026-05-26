@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	redisclient "waitingroom/admissionservice/redis"
@@ -34,7 +35,7 @@ func main() {
 		log.Fatalf("Failed to register routes: %v", err)
 	}
 
-	redisClientConfig := redisclient.RedisClientConfig{Address: "localhost:6379", Username: "", Password: "", Protocol: 2}
+	redisClientConfig := getRedisClientConfig()
 	redisclient.GetRedisClient(redisClientConfig)
 	defer redisclient.Close()
 	response, err := redisclient.LoadRedisLibrary(redisclient.LoadRedisLibraryRequest{SourceCode: redisFunctionString})
@@ -49,4 +50,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Server failed to listen: %v", err)
 	}
+}
+
+func getRedisClientConfig() redisclient.RedisClientConfig {
+	address := os.Getenv("REDIS_ADDRESS")
+	username := os.Getenv("REDIS_USERNAME")
+	password := os.Getenv("REDIS_PASSWORD")
+	if address == "" {
+		log.Printf("Environment Variable REDIS_ADDRESS is not set. Defaulting to: %v", redisclient.DefaultAddress)
+		address = redisclient.DefaultAddress
+	}
+
+	return redisclient.RedisClientConfig{Address: address, Username: username, Password: password, Protocol: 2}
 }

@@ -28,6 +28,7 @@ func RegisterRoutes(r chi.Router, service *services.WaitingRoomService) error {
 
 func createWaitingRoom(w http.ResponseWriter, r *http.Request) {
 	var createWaitingRoomRequest models.CreateWaitingRoomRequest
+	log.Printf("Received createWaitingRoom request")
 	err := json.NewDecoder(r.Body).Decode(&createWaitingRoomRequest)
 	if err != nil {
 		log.Printf("Failed to decode request json: %v", err)
@@ -46,7 +47,7 @@ func createWaitingRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-
+	log.Printf("Successfully created waiting room: %v", waitingRoom.RoomId)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(waitingRoom)
 }

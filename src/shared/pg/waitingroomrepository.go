@@ -10,5 +10,6 @@ type WaitingRoomRepository interface {
 	GetWaitingRoom(ctx context.Context, request models.GetWaitingRoomRequest) (models.WaitingRoom, error)
 	DeleteWaitingRoom(ctx context.Context, request models.DeleteWaitingRoomRequest) (bool, error)
 	Ping(ctx context.Context) error
+	SchemaExists(ctx context.Context) (bool, error)
 	Close()
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const DefaultAddress = "localhost:6379"
+
 type RedisClientConfig struct {
 	Address  string
 	Username string
@@ -44,8 +46,9 @@ var (
 func _newInstance(redisClientConfig RedisClientConfig) *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     redisClientConfig.Address,
-		Password: redisClientConfig.Password, // no password
-		DB:       0,                          // use default DB
+		Username: redisClientConfig.Username,
+		Password: redisClientConfig.Password,
+		DB:       0, // use default DB
 		Protocol: redisClientConfig.Protocol,
 	})
 	return rdb
