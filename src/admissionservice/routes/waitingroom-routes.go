@@ -55,9 +55,12 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-
-	data := map[string]string{"roomId": roomId, "decision": redisFunctionResponse.Decision, "origin": origin}
-
+	status := models.WaitingRoomStatus{
+		RoomId:              roomId,
+		Decision:            redisFunctionResponse.Decision,
+		Origin:              origin,
+		NumberOfActiveUsers: redisFunctionResponse.NumberOfActiveUsers,
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	json.NewEncoder(w).Encode(status)
 }
