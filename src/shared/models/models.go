@@ -39,6 +39,13 @@ type ValidationError struct {
 	Messages []string
 }
 
+type WaitingRoomStatus struct {
+	RoomId              string `json:"roomId"`
+	Decision            string `json:"decision"`
+	Origin              string `json:"origin"`
+	NumberOfActiveUsers int64  `json:"numberOfActiveUsers"`
+}
+
 func (e *ValidationError) Error() string {
 	return strings.Join(e.Messages, "\n")
 }
