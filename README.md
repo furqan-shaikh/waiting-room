@@ -64,7 +64,8 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
    {
      "roomId": "<roomId>",
      "decision": "admit",
-     "origin": "http://localhost:8080"
+     "origin": "http://localhost:8080",
+     "numberOfActiveUsers": 1
    }
    ```
 
@@ -343,6 +344,17 @@ curl -i \
   http://localhost:3333/waitingRooms/<roomId>/status
 ```
 
+Example response:
+
+```json
+{
+  "roomId": "<roomId>",
+  "decision": "wait",
+  "origin": "http://localhost:8080",
+  "numberOfActiveUsers": 1
+}
+```
+
 ## Postgres
 
 The MVP uses one table:
@@ -383,6 +395,7 @@ The score is the session expiration timestamp. Before making a decision, the fun
 - admits the request if the session token already exists
 - admits a new session if active count is below capacity
 - returns `wait` when capacity is full
+- returns the number of active users after expired sessions are removed
 
 Manual Redis debugging commands:
 
@@ -420,6 +433,30 @@ cd ../controlplane && go test ./...
 cd ../admissionservice && go test ./...
 ```
 
+## Manual Testing
+
+### View Waiting State In The UI
+
+The Admission Service currently refreshes admitted sessions with a short TTL. To force the waiting room UI to stay in the `wait` state, create a waiting room with `maxActiveUsersCount` set to `1`, then keep one active session alive from a terminal:
+
+```bash
+while true; do
+  curl -s \
+    -c /tmp/wr-active-cookie.txt \
+    -b /tmp/wr-active-cookie.txt \
+    http://localhost:3333/waitingRooms/<roomId>/status
+  sleep 2
+done
+```
+
+Then open the waiting room app in an incognito window or a different browser:
+
+```text
+http://localhost:3333/waitingRooms/<roomId>
+```
+
+The terminal session occupies the only active slot, so the browser session should remain waiting and display the active user count.
+
 ## Design Notes
 
 - The Control Plane and Data Plane are separate services because they have different traffic patterns and responsibilities.
@@ -437,7 +474,7 @@ This project is currently an MVP and intentionally leaves several production con
 
 - Show estimated waiting time to users.
 - Show queue position or number of users ahead.
-- Show current number of active users and waiting users for a room.
+- Show current number of waiting users for a room.
 - Add admin APIs to update waiting room configuration.
 - Add admin APIs to list waiting rooms.
 - Add support for pausing, activating, and deleting waiting rooms.
