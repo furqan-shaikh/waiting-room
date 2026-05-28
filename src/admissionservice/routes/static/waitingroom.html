@@ -101,6 +101,36 @@
                 font-size: 0.875rem;
             }
 
+            .stats {
+                display: grid;
+                gap: 12px;
+                margin-top: 24px;
+                padding-top: 20px;
+                border-top: 1px solid var(--border);
+            }
+
+            .stat {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+            }
+
+            .stat-label {
+                color: var(--muted);
+                font-size: 0.875rem;
+            }
+
+            .stat-value {
+                min-width: 4ch;
+                color: var(--text);
+                font-size: 1.5rem;
+                font-weight: 700;
+                line-height: 1;
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+            }
+
             .meter {
                 height: 6px;
                 overflow: hidden;
@@ -175,6 +205,12 @@
                 <span class="pill">Room <strong id="room-id">-</strong></span>
                 <span class="pill">Next check <strong id="next-check">now</strong></span>
             </div>
+            <section class="stats" aria-label="Waiting room statistics">
+                <div class="stat">
+                    <span class="stat-label">Active users</span>
+                    <strong class="stat-value" id="active-users">-</strong>
+                </div>
+            </section>
             <div class="meter" aria-hidden="true"><span></span></div>
         </main>
     </body>

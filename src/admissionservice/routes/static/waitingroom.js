@@ -7,6 +7,7 @@
     var statusMessage = document.getElementById("status-message");
     var roomIdLabel = document.getElementById("room-id");
     var nextCheck = document.getElementById("next-check");
+    var activeUsers = document.getElementById("active-users");
 
     var roomId = getRoomIdFromPath(window.location.pathname);
     var pollTimer = null;
@@ -61,6 +62,8 @@
             throw new Error("Invalid status response");
         }
 
+        updateActiveUsers(payload.numberOfActiveUsers);
+
         if (payload.decision === "admit") {
             setState("admitted", "You are next", "Redirecting you now.");
             redirectToOrigin(payload.origin);
@@ -74,6 +77,15 @@
         }
 
         throw new Error("Unknown waiting room decision: " + payload.decision);
+    }
+
+    function updateActiveUsers(value) {
+        if (typeof value === "number" && isFinite(value)) {
+            activeUsers.textContent = String(value);
+            return;
+        }
+
+        activeUsers.textContent = "-";
     }
 
     function redirectToOrigin(origin) {
