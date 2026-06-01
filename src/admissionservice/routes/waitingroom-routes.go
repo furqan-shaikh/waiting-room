@@ -42,13 +42,15 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	maxActiveUserCount := waitingRoom.MaxActiveUsersCount
 
 	ttlInSeconds := 5
+	waitingTtlInSeconds := 600 // 10 minutes
 	origin := waitingRoom.OriginApplication
 
 	redisFunctionResponse, err := redisclient.InvokeRedisLibrary(redisclient.RedisFunctionRequest{
-		RoomId:             roomId,
-		MaxActiveUserCount: maxActiveUserCount,
-		SessionToken:       sessionToken,
-		TTLInSeconds:       ttlInSeconds,
+		RoomId:              roomId,
+		MaxActiveUserCount:  maxActiveUserCount,
+		SessionToken:        sessionToken,
+		TTLInSeconds:        ttlInSeconds,
+		WaitingTTLInSeconds: waitingTtlInSeconds,
 	})
 	if err != nil {
 		log.Printf("Error in invoking redis function: %v", err)
@@ -56,10 +58,11 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status := models.WaitingRoomStatus{
-		RoomId:              roomId,
-		Decision:            redisFunctionResponse.Decision,
-		Origin:              origin,
-		NumberOfActiveUsers: redisFunctionResponse.NumberOfActiveUsers,
+		RoomId:               roomId,
+		Decision:             redisFunctionResponse.Decision,
+		Origin:               origin,
+		NumberOfActiveUsers:  redisFunctionResponse.NumberOfActiveUsers,
+		NumberOfWaitingUsers: redisFunctionResponse.NumberOfWaitingUsers,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)

@@ -65,7 +65,8 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
      "roomId": "<roomId>",
      "decision": "admit",
      "origin": "http://localhost:8080",
-     "numberOfActiveUsers": 1
+     "numberOfActiveUsers": 1,
+     "numberOfWaitingUsers": 0
    }
    ```
 
@@ -103,7 +104,7 @@ src/
 - Go matching the version in `src/go.work`
 - Docker
 - Postgres
-- Redis 7 or later
+- Redis 7.4+ or later
 - golang-migrate
 
 Install golang-migrate on macOS:
@@ -136,7 +137,7 @@ docker start waitingroom-postgres
 docker run -d \
   --name waitingroom-redis \
   -p 6379:6379 \
-  redis:7
+  redis:7.4
 ```
 
 If the container already exists:
@@ -351,7 +352,8 @@ Example response:
   "roomId": "<roomId>",
   "decision": "wait",
   "origin": "http://localhost:8080",
-  "numberOfActiveUsers": 1
+  "numberOfActiveUsers": 1,
+  "numberOfWaitingUsers": 1
 }
 ```
 
@@ -390,12 +392,20 @@ The function stores active session tokens in a sorted set per waiting room:
 room:<roomId>:session_tokens
 ```
 
-The score is the session expiration timestamp. Before making a decision, the function removes expired sessions, then:
+The active-session score is the session expiration timestamp. Before making a decision, the function removes expired active sessions, then:
 
 - admits the request if the session token already exists
 - admits a new session if active count is below capacity
 - returns `wait` when capacity is full
 - returns the number of active users after expired sessions are removed
+
+The function stores waiting session tokens in a hash per waiting room:
+
+```text
+room:<roomId>:waiting_users
+```
+
+Each waiting user is stored by session token with a field-level expiry. Repeated polls from the same waiting session refresh the waiting TTL without increasing the waiting count. When a waiting session is admitted, it is removed from the waiting-users hash.
 
 Manual Redis debugging commands:
 
@@ -455,7 +465,7 @@ Then open the waiting room app in an incognito window or a different browser:
 http://localhost:3333/waitingRooms/<roomId>
 ```
 
-The terminal session occupies the only active slot, so the browser session should remain waiting and display the active user count.
+The terminal session occupies the only active slot, so the browser session should remain waiting and display the active and waiting user counts.
 
 ## Design Notes
 
@@ -474,7 +484,6 @@ This project is currently an MVP and intentionally leaves several production con
 
 - Show estimated waiting time to users.
 - Show queue position or number of users ahead.
-- Show current number of waiting users for a room.
 - Add admin APIs to update waiting room configuration.
 - Add admin APIs to list waiting rooms.
 - Add support for pausing, activating, and deleting waiting rooms.

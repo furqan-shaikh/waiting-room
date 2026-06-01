@@ -2,6 +2,7 @@
 
 local function isRedisError(result)
     if type(result) == "table" and result.err then
+        redis.log(redis.LOG_NOTICE, result.err)
         return true
     end
     return false
@@ -19,6 +20,23 @@ local function addUser(key, newTtl, sessionToken)
     return redis.pcall("ZADD", key, newTtl, sessionToken)
 end
 
+local function trackWaitingUser(waitingUsersKey, sessionToken, waitingTtl)
+
+    local result = redis.pcall("HSET", waitingUsersKey, sessionToken, 1)
+    if isRedisError(result) then
+        redis.log(redis.LOG_NOTICE, "Failed to add user to waiting list for key " .. waitingUsersKey .. " and session token " .. sessionToken)
+        return false
+    end
+    -- set expiry : waiting TTL in seconds
+    local expiryResult = redis.pcall("HEXPIRE", waitingUsersKey, waitingTtl, "FIELDS", 1, sessionToken)
+    if isRedisError(expiryResult) then
+        redis.log(redis.LOG_NOTICE, "Failed to add expiry for key " .. waitingUsersKey .. " and session token " .. sessionToken)
+        return false
+    end
+
+    return true
+end
+
 -- invoke as: FCALL waitingroomdecisionworkflow 0 roomid1 3 sessiontoken 5
 local function executeWaitingRoomWorkflow(keys, args)
     
@@ -32,13 +50,16 @@ local function executeWaitingRoomWorkflow(keys, args)
     local maxActiveUserCount = tonumber(args[2])
     local sessionToken = args[3]
     local ttl = tonumber(args[4])
+    local waitingTtl = tonumber(args[5])
     
-    -- construct key name for storing session tokens. Key is created per wwiting room
+    -- construct key name for storing session tokens. Key is created per waiting room
     local key = "room:" .. roomId .. ":session_tokens"
+    local waitingUsersKey = "room:" .. roomId .. ":waiting_users"
     local decision = ""
     local currentTimestamp = getCurrentTimestamp()
     local newTtl = currentTimestamp + ttl
     local roomSize = 0
+    local waitingUsersSize = 0
 
     -- Clear the sorted set using ZREMRANGEBYSCORE. This ensures that session tokens that have expired are removed and 
     -- hence allows us to determine the waiting room count without the need to maintain a separate key for count
@@ -86,10 +107,34 @@ local function executeWaitingRoomWorkflow(keys, args)
             roomSize = roomSize + 1
             decision = DECISION_ADMIT
         else
+            -- track this waiting user
+            local waitingUserStatus = trackWaitingUser(waitingUsersKey, sessionToken, waitingTtl)
+            if waitingUserStatus == false then
+                local errMessage = "Failed to track waiting user for key " .. waitingUsersKey .. " and session token " .. sessionToken
+                redis.log(redis.LOG_NOTICE, errMessage)
+                return { err = errMessage }
+            end
             decision = DECISION_WAIT
         end
     end
-    return { "decision", decision, "numberOfActiveUsers", roomSize }
+
+    -- if decision is admit, remove the user from waiting user
+    if decision == DECISION_ADMIT then
+        local removeWaitingUserResult = redis.pcall("HDEL", waitingUsersKey, sessionToken)
+        if isRedisError(removeWaitingUserResult) then
+            redis.log(redis.LOG_NOTICE, "Failed to remove session token from waiting users for key " .. waitingUsersKey .. " and session token " .. sessionToken)
+        end
+    end
+
+    -- get the waiting user count
+    local waitingUsersLengthResult = redis.pcall("HLEN", waitingUsersKey)
+    if isRedisError(waitingUsersLengthResult) then
+         redis.log(redis.LOG_NOTICE, "Failed to get size of waiting users for key " .. waitingUsersKey)
+    else
+        waitingUsersSize = waitingUsersLengthResult
+    end
+    
+    return { "decision", decision, "numberOfActiveUsers", roomSize, "numberOfWaitingUsers", waitingUsersSize}
 
 end
 

@@ -27,15 +27,17 @@ type LoadRedisLibraryResponse struct {
 }
 
 type RedisFunctionRequest struct {
-	RoomId             string
-	MaxActiveUserCount int
-	SessionToken       string
-	TTLInSeconds       int
+	RoomId              string
+	MaxActiveUserCount  int
+	SessionToken        string
+	TTLInSeconds        int
+	WaitingTTLInSeconds int
 }
 
 type RedisFunctionResponse struct {
-	Decision            string
-	NumberOfActiveUsers int64
+	Decision             string
+	NumberOfActiveUsers  int64
+	NumberOfWaitingUsers int64
 }
 
 var (
@@ -85,6 +87,7 @@ func InvokeRedisLibrary(args RedisFunctionRequest) (RedisFunctionResponse, error
 		args.MaxActiveUserCount,
 		args.SessionToken,
 		args.TTLInSeconds,
+		args.WaitingTTLInSeconds,
 	).Result()
 
 	if err != nil {
@@ -100,7 +103,7 @@ func InvokeRedisLibrary(args RedisFunctionRequest) (RedisFunctionResponse, error
 		return RedisFunctionResponse{}, errors.New("Unexpected response format from Redis")
 	}
 	log.Printf("Raw Redis Output: %v\n", sliceResult)
-	return RedisFunctionResponse{Decision: sliceResult[1].(string), NumberOfActiveUsers: sliceResult[3].(int64)}, nil
+	return RedisFunctionResponse{Decision: sliceResult[1].(string), NumberOfActiveUsers: sliceResult[3].(int64), NumberOfWaitingUsers: sliceResult[5].(int64)}, nil
 }
 
 func Close() error {
