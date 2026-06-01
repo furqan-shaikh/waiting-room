@@ -490,6 +490,7 @@ This project is currently an MVP and intentionally leaves several production con
 - Add configurable polling interval per waiting room.
 - Add custom waiting room UI configuration per room.
 - Revisit the MVP assumption that the Admission Service directly serves the waiting room app.
+- Add session TTL configuration to waiting room CP resource
 
 ### Non-Functional
 
