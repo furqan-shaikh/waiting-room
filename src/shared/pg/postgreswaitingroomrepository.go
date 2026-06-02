@@ -58,14 +58,16 @@ func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Conte
 		return false, errors.New("Call NewRepository before invoking repository methods")
 	}
 	// construct insert parameterized query
-	query := `INSERT INTO waitingrooms (room_id, created_at, updated_at, max_active_users_count, origin_application, status) VALUES (@room_id, @created_at, @updated_at, @max_active_users_count, @origin_application, @status)`
+	query := `INSERT INTO waitingrooms (room_id, created_at, updated_at, max_active_users_count, origin_application, status, active_session_ttl_seconds, waiting_session_ttl_seconds) VALUES (@room_id, @created_at, @updated_at, @max_active_users_count, @origin_application, @status, @active_session_ttl_seconds, @waiting_session_ttl_seconds)`
 	args := pgx.NamedArgs{
-		"room_id":                request.RoomId,
-		"max_active_users_count": request.MaxActiveUsersCount,
-		"origin_application":     request.OriginApplication,
-		"status":                 request.Status,
-		"created_at":             request.CreatedAt,
-		"updated_at":             request.UpdatedAt,
+		"room_id":                     request.RoomId,
+		"max_active_users_count":      request.MaxActiveUsersCount,
+		"origin_application":          request.OriginApplication,
+		"status":                      request.Status,
+		"created_at":                  request.CreatedAt,
+		"updated_at":                  request.UpdatedAt,
+		"active_session_ttl_seconds":  request.ActiveSessionTtlSeconds,
+		"waiting_session_ttl_seconds": request.WaitingSessionTtlSeconds,
 	}
 	log.Printf("Inserting waiting room into pg table: %v", request.RoomId)
 	_, err := pgrepository.pgConnectionPool.Exec(ctx, query, args)
@@ -82,7 +84,17 @@ func (pgrepository *PgWaitingRoomRepository) GetWaitingRoom(ctx context.Context,
 		return models.WaitingRoom{}, errors.New("Call NewRepository before invoking repository methods")
 	}
 
-	query := `SELECT * FROM waitingrooms WHERE room_id = @room_id AND status = @status`
+	// since the 2 ttl columns can have null values, we need to return 0 else scanning NULL into int would fail.
+	// The COALESCE() function accepts a list of arguments and returns the first non-null argument.
+	query := `SELECT room_id,
+					created_at,
+  					updated_at,
+  					max_active_users_count,
+  					origin_application,
+  					status, 
+					COALESCE(active_session_ttl_seconds, 0) AS active_session_ttl_seconds,
+					COALESCE(waiting_session_ttl_seconds, 0) AS waiting_session_ttl_seconds
+			  FROM waitingrooms WHERE room_id = @room_id AND status = @status`
 	args := pgx.NamedArgs{
 		"room_id": request.RoomId,
 		"status":  models.StatusActive,

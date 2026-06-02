@@ -26,6 +26,8 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
 - An admin can create a waiting room with:
   - maximum active users count
   - origin application URL
+  - optional active session TTL in seconds
+  - optional waiting session TTL in seconds
 - An admin can fetch an active waiting room by room ID.
 - An admin can delete a waiting room using soft delete.
 - A user can visit a waiting room URL served by the admission service.
@@ -297,8 +299,34 @@ http://localhost:3333/waitingRooms/<roomId>
 ```bash
 curl -X POST \
   -H "Content-Type: application/json" \
-  -d '{"maxActiveUsersCount":1,"originApplication":"http://localhost:8080"}' \
+  -d '{"maxActiveUsersCount":1,"originApplication":"http://localhost:8080","activeSessionTtlSeconds":10,"waitingSessionTtlSeconds":600}' \
   http://localhost:3000/waitingRooms
+```
+
+The TTL fields are optional. If omitted or set to `0`, the Control Plane applies defaults:
+
+- `activeSessionTtlSeconds`: `10`
+- `waitingSessionTtlSeconds`: `600`
+
+Example response:
+
+```json
+{
+  "roomId": "573bba8c-645c-4237-9930-f6c1698956d6",
+  "createdAt": "2026-05-25T10:00:00Z",
+  "updatedAt": "2026-05-25T10:00:00Z",
+  "status": "ACTIVE",
+  "maxActiveUsersCount": 1,
+  "originApplication": "http://localhost:8080",
+  "activeSessionTtlSeconds": 10,
+  "waitingSessionTtlSeconds": 600
+}
+```
+
+### Get Waiting Room
+
+```bash
+curl http://localhost:3000/waitingRooms/<roomId>
 ```
 
 Example response:
@@ -310,14 +338,10 @@ Example response:
   "updatedAt": "2026-05-25T10:00:00Z",
   "status": "ACTIVE",
   "maxActiveUsersCount": 1,
-  "originApplication": "http://localhost:8080"
+  "originApplication": "http://localhost:8080",
+  "activeSessionTtlSeconds": 10,
+  "waitingSessionTtlSeconds": 600
 }
-```
-
-### Get Waiting Room
-
-```bash
-curl http://localhost:3000/waitingRooms/<roomId>
 ```
 
 ### Delete Waiting Room
@@ -368,9 +392,13 @@ CREATE TABLE IF NOT EXISTS waitingrooms(
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     max_active_users_count INTEGER NOT NULL CHECK (max_active_users_count > 0),
     origin_application TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DELETED'))
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DELETED')),
+    active_session_ttl_seconds INTEGER CHECK (active_session_ttl_seconds > 0),
+    waiting_session_ttl_seconds INTEGER CHECK (waiting_session_ttl_seconds > 0)
 );
 ```
+
+The TTL columns are nullable so existing waiting rooms can survive the migration. Services resolve missing TTL values to the same defaults returned by the Control Plane.
 
 Migrations live in:
 
@@ -411,7 +439,7 @@ Manual Redis debugging commands:
 
 ```bash
 cat src/admissionservice/scripts/waitingroomdecisionworkflow.lua | redis-cli -x FUNCTION LOAD REPLACE
-redis-cli FCALL waitingroomdecisionworkflow 0 roomid1 3 sessiontoken 5
+redis-cli FCALL waitingroomdecisionworkflow 0 roomid1 3 sessiontoken 10 600
 redis-cli FUNCTION DELETE waitingroomdecisionworkflow
 ```
 
@@ -490,7 +518,6 @@ This project is currently an MVP and intentionally leaves several production con
 - Add configurable polling interval per waiting room.
 - Add custom waiting room UI configuration per room.
 - Revisit the MVP assumption that the Admission Service directly serves the waiting room app.
-- Add session TTL configuration to waiting room CP resource
 
 ### Non-Functional
 

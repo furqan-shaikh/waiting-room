@@ -4,6 +4,8 @@
 PG_DATABASE_URL ?= postgres://wr:wr@localhost:5432/waitingroomdb?sslmode=disable
 # override using: make migrate-up MIGRATIONS_DIR='..'
 MIGRATIONS_DIR ?= dao/migrations
+# gversion to be passed to golang-migrate
+SCHEMA_MIGRATE_VERSION ?=
 
 # CGO_ENABLED=0 disables Cgo to produce a statically-linked Go binary, making the executable more portable and container-friendly.
 # A statically-linked binary doesn't have run-time dependencies on other libraries, not even the C runtime library (libc)
@@ -33,3 +35,7 @@ migrate-down: check-migrate
 
 migrate-version: check-migrate
 	migrate -database "$(PG_DATABASE_URL)" -path $(MIGRATIONS_DIR) version
+
+migrate-force: check-migrate
+	@test -n "$(SCHEMA_MIGRATE_VERSION)" || (echo "SCHEMA_MIGRATE_VERSION is required. Usage: make migrate-force SCHEMA_MIGRATE_VERSION=2" && exit 1)
+	migrate -database "$(PG_DATABASE_URL)" -path $(MIGRATIONS_DIR) force $(SCHEMA_MIGRATE_VERSION)

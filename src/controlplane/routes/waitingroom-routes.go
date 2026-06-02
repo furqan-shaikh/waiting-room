@@ -32,23 +32,34 @@ func createWaitingRoom(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&createWaitingRoomRequest)
 	if err != nil {
 		log.Printf("Failed to decode request json: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
+		handleErrorResponse(w, "Failed to decode request json", http.StatusBadRequest, models.BadRequestCode, []models.ResponseErrorDetailItem{})
 		return
 	}
 
+	log.Printf("CreateWaitingRoom: %v", createWaitingRoomRequest)
 	waitingRoom, err := waitingRoomService.CreateWaitingRoom(r.Context(), createWaitingRoomRequest)
 	if err != nil {
 		if validationError, ok := errors.AsType[*models.ValidationError](err); ok {
 			log.Printf("Validation Errors in creating waiting room: %v", validationError)
-			w.WriteHeader(http.StatusBadRequest)
+			messages := validationError.Messages
+			responseMessages := []models.ResponseErrorDetailItem{}
+			for i := 0; i < len(messages); i++ {
+				responseMessages = append(responseMessages, models.ResponseErrorDetailItem{
+					Field:   messages[i].Field,
+					Message: messages[i].Message,
+				})
+			}
+			handleErrorResponse(w, "Validation failed for request", http.StatusBadRequest, models.BadRequestCode, responseMessages)
 			return
 		}
 		log.Printf("Error in creating waiting room: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		handleErrorResponse(w, "Error in creating waiting room", http.StatusInternalServerError, models.InternalServerErrorCode, []models.ResponseErrorDetailItem{})
 		return
 	}
 	log.Printf("Successfully created waiting room: %v", waitingRoom.RoomId)
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+
 	json.NewEncoder(w).Encode(waitingRoom)
 }
 
@@ -80,4 +91,16 @@ func deleteWaitingRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func handleErrorResponse(w http.ResponseWriter, message string, statusCode int, errorCode string, details []models.ResponseErrorDetailItem) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	encoder := json.NewEncoder(w)
+	encoder.SetEscapeHTML(false)
+	encoder.Encode(models.ResponseError{
+		Code:    errorCode,
+		Message: message,
+		Details: details,
+	})
 }

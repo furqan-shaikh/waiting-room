@@ -7,19 +7,44 @@ import (
 
 const StatusActive = "ACTIVE"
 const StatusDeleted = "DELETED"
+const DefaultActiveSessionTtlInSeconds = 10
+const DefaultWaitingSessionTtlInSeconds = 600
 
 type CreateWaitingRoomRequest struct {
-	MaxActiveUsersCount int    `json:"maxActiveUsersCount"`
-	OriginApplication   string `json:"originApplication"`
+	MaxActiveUsersCount      int    `json:"maxActiveUsersCount"`      // Required
+	OriginApplication        string `json:"originApplication"`        // Required
+	ActiveSessionTtlSeconds  int    `json:"activeSessionTtlSeconds"`  // Optional
+	WaitingSessionTtlSeconds int    `json:"waitingSessionTtlSeconds"` // Optional
+}
+
+const BadRequestCode = "BadRequest"
+const InternalServerErrorCode = "InternalServerError"
+
+type ResponseError struct {
+	Code    string                    `json:"code"`
+	Message string                    `json:"message"`
+	Details []ResponseErrorDetailItem `json:"details"`
+}
+
+type ResponseErrorDetailItem struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+type ValidationErrorItem struct {
+	Field   string
+	Message string
 }
 
 type WaitingRoom struct {
-	RoomId              string    `json:"roomId"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
-	Status              string    `json:"status"`
-	MaxActiveUsersCount int       `json:"maxActiveUsersCount"`
-	OriginApplication   string    `json:"originApplication"`
+	RoomId                   string    `json:"roomId"`
+	CreatedAt                time.Time `json:"createdAt"`
+	UpdatedAt                time.Time `json:"updatedAt"`
+	Status                   string    `json:"status"`
+	MaxActiveUsersCount      int       `json:"maxActiveUsersCount"`
+	OriginApplication        string    `json:"originApplication"`
+	ActiveSessionTtlSeconds  int       `json:"activeSessionTtlSeconds"`
+	WaitingSessionTtlSeconds int       `json:"waitingSessionTtlSeconds"`
 }
 
 type GetWaitingRoomRequest struct {
@@ -36,7 +61,7 @@ type CreateWaitingRoomValidationResult struct {
 }
 
 type ValidationError struct {
-	Messages []string
+	Messages []ValidationErrorItem
 }
 
 type WaitingRoomStatus struct {
@@ -48,7 +73,11 @@ type WaitingRoomStatus struct {
 }
 
 func (e *ValidationError) Error() string {
-	return strings.Join(e.Messages, "\n")
+	messages := make([]string, 0, len(e.Messages))
+	for _, message := range e.Messages {
+		messages = append(messages, message.Message)
+	}
+	return strings.Join(messages, "\n")
 }
 
 type NotFoundError struct {

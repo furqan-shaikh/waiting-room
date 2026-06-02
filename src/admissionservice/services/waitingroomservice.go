@@ -57,6 +57,13 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 		if err := json.Unmarshal([]byte(roomConfigFromCacheString), &roomConfigFromCache); err != nil {
 			log.Printf("Failed to decode waiting room config from cache: %v", err)
 		} else {
+			if roomConfigFromCache.ActiveSessionTtlSeconds == 0 {
+				roomConfigFromCache.ActiveSessionTtlSeconds = models.DefaultActiveSessionTtlInSeconds
+			}
+
+			if roomConfigFromCache.WaitingSessionTtlSeconds == 0 {
+				roomConfigFromCache.WaitingSessionTtlSeconds = models.DefaultWaitingSessionTtlInSeconds
+			}
 			return roomConfigFromCache, nil
 		}
 	}
@@ -67,9 +74,28 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 		log.Printf("Failed to get waiting room: %v", err)
 		return models.WaitingRoom{}, err
 	}
+	activeSessionTtlInSeconds := models.DefaultActiveSessionTtlInSeconds
+	if waitingRoomFromDb.ActiveSessionTtlSeconds != 0 {
+		activeSessionTtlInSeconds = waitingRoomFromDb.ActiveSessionTtlSeconds
+	}
+
+	waitingSessionTtlInSeconds := models.DefaultWaitingSessionTtlInSeconds
+	if waitingRoomFromDb.WaitingSessionTtlSeconds != 0 {
+		waitingSessionTtlInSeconds = waitingRoomFromDb.WaitingSessionTtlSeconds
+	}
+	newWaitingRoomFromDb := models.WaitingRoom{
+		RoomId:                   waitingRoomFromDb.RoomId,
+		CreatedAt:                waitingRoomFromDb.CreatedAt,
+		UpdatedAt:                waitingRoomFromDb.UpdatedAt,
+		MaxActiveUsersCount:      waitingRoomFromDb.MaxActiveUsersCount,
+		Status:                   waitingRoomFromDb.Status,
+		OriginApplication:        waitingRoomFromDb.OriginApplication,
+		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
+		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
+	}
 
 	// 4. Set in cache
-	waitingRoomB, marshalErr := json.Marshal(waitingRoomFromDb)
+	waitingRoomB, marshalErr := json.Marshal(newWaitingRoomFromDb)
 	if marshalErr == nil {
 		svc.roomCacheManager.Set(request.RoomId, string(waitingRoomB))
 	} else {
@@ -77,5 +103,5 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 	}
 
 	// 5. return
-	return waitingRoomFromDb, nil
+	return newWaitingRoomFromDb, nil
 }

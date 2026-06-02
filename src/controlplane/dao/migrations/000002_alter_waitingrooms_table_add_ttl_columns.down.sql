@@ -1,0 +1,3 @@
+ALTER TABLE waitingrooms
+DROP COLUMN active_session_ttl_seconds,
+DROP COLUMN waiting_session_ttl_seconds;
