@@ -38,23 +38,12 @@ func NewWaitingRoomService(ctx context.Context) (*WaitingRoomService, error) {
 
 func (svc *WaitingRoomService) CreateWaitingRoom(ctx context.Context, request models.CreateWaitingRoomRequest) (models.WaitingRoom, error) {
 	// Validate the request
-
 	validationMessages := validateWaitingRoomRequest(request)
 	if len(validationMessages) > 0 {
 		return models.WaitingRoom{}, &models.ValidationError{Messages: validationMessages}
 	}
 	log.Printf("Successfully validated the WaitingRoomRequest")
-	room_id := uuid.New().String()
-	nowUTC := time.Now().UTC()
-
-	waitingRoom := models.WaitingRoom{
-		RoomId:              room_id,
-		CreatedAt:           nowUTC,
-		UpdatedAt:           nowUTC,
-		MaxActiveUsersCount: request.MaxActiveUsersCount,
-		OriginApplication:   request.OriginApplication,
-		Status:              models.StatusActive,
-	}
+	waitingRoom := getWaitingRoomEntity(request)
 	_, err := svc.pgWaitingRoomRepository.CreateWaitingRoom(ctx, waitingRoom)
 	if err != nil {
 		log.Printf("Failed to create waiting room: %v", err)
@@ -63,13 +52,57 @@ func (svc *WaitingRoomService) CreateWaitingRoom(ctx context.Context, request mo
 	return waitingRoom, nil
 }
 
+func getWaitingRoomEntity(request models.CreateWaitingRoomRequest) models.WaitingRoom {
+	room_id := uuid.New().String()
+	nowUTC := time.Now().UTC()
+	activeSessionTtlInSeconds := models.DefaultActiveSessionTtlInSeconds
+	if request.ActiveSessionTtlSeconds != 0 {
+		activeSessionTtlInSeconds = request.ActiveSessionTtlSeconds
+	}
+
+	waitingSessionTtlInSeconds := models.DefaultWaitingSessionTtlInSeconds
+	if request.WaitingSessionTtlSeconds != 0 {
+		waitingSessionTtlInSeconds = request.WaitingSessionTtlSeconds
+	}
+
+	return models.WaitingRoom{
+		RoomId:                   room_id,
+		CreatedAt:                nowUTC,
+		UpdatedAt:                nowUTC,
+		MaxActiveUsersCount:      request.MaxActiveUsersCount,
+		OriginApplication:        request.OriginApplication,
+		Status:                   models.StatusActive,
+		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
+		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
+	}
+}
+
 func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request models.GetWaitingRoomRequest) (models.WaitingRoom, error) {
 	waitingRoom, err := svc.pgWaitingRoomRepository.GetWaitingRoom(ctx, request)
 	if err != nil {
 		log.Printf("Failed to get waiting room: %v", err)
 		return models.WaitingRoom{}, err
 	}
-	return waitingRoom, nil
+	activeSessionTtlInSeconds := models.DefaultActiveSessionTtlInSeconds
+	if waitingRoom.ActiveSessionTtlSeconds != 0 {
+		activeSessionTtlInSeconds = waitingRoom.ActiveSessionTtlSeconds
+	}
+
+	waitingSessionTtlInSeconds := models.DefaultWaitingSessionTtlInSeconds
+	if waitingRoom.WaitingSessionTtlSeconds != 0 {
+		waitingSessionTtlInSeconds = waitingRoom.WaitingSessionTtlSeconds
+	}
+	newWaitingRoomModel := models.WaitingRoom{
+		RoomId:                   waitingRoom.RoomId,
+		CreatedAt:                waitingRoom.CreatedAt,
+		UpdatedAt:                waitingRoom.UpdatedAt,
+		MaxActiveUsersCount:      waitingRoom.MaxActiveUsersCount,
+		Status:                   waitingRoom.Status,
+		OriginApplication:        waitingRoom.OriginApplication,
+		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
+		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
+	}
+	return newWaitingRoomModel, nil
 }
 
 func (svc *WaitingRoomService) DeleteWaitingRoom(ctx context.Context, request models.DeleteWaitingRoomRequest) (bool, error) {
@@ -81,13 +114,31 @@ func (svc *WaitingRoomService) DeleteWaitingRoom(ctx context.Context, request mo
 	return status, nil
 }
 
-func validateWaitingRoomRequest(request models.CreateWaitingRoomRequest) []string {
-	messages := []string{}
+func validateWaitingRoomRequest(request models.CreateWaitingRoomRequest) []models.ValidationErrorItem {
+	messages := []models.ValidationErrorItem{}
 	if request.MaxActiveUsersCount <= 0 {
-		messages = append(messages, "MaxActiveUsersCount must be > 0")
+		messages = append(messages, models.ValidationErrorItem{
+			Field:   "maxActiveUsersCount",
+			Message: "maxActiveUsersCount must be greater than 0",
+		})
 	}
 	if request.OriginApplication == "" {
-		messages = append(messages, "Origin Application is a required field")
+		messages = append(messages, models.ValidationErrorItem{
+			Field:   "originApplication",
+			Message: "originApplication is a required field",
+		})
+	}
+	if request.ActiveSessionTtlSeconds < 0 {
+		messages = append(messages, models.ValidationErrorItem{
+			Field:   "activeSessionTtlSeconds",
+			Message: "activeSessionTtlSeconds must be greater than 0 when provided",
+		})
+	}
+	if request.WaitingSessionTtlSeconds < 0 {
+		messages = append(messages, models.ValidationErrorItem{
+			Field:   "waitingSessionTtlSeconds",
+			Message: "waitingSessionTtlSeconds must be greater than 0 when provided",
+		})
 	}
 	return messages
 }
