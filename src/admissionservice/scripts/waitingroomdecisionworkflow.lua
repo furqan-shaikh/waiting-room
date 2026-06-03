@@ -33,8 +33,42 @@ local function trackWaitingUser(waitingUsersKey, sessionToken, waitingTtl)
         redis.log(redis.LOG_NOTICE, "Failed to add expiry for key " .. waitingUsersKey .. " and session token " .. sessionToken)
         return false
     end
-
+    
     return true
+end
+
+-- Assume maxActiveUsersCount = 3, activeSessionTtlInSeconds = 3600 (1 hour), roomId: "1"
+-- Lets say three users are admitted. They arrive at 13:00, 13:10, 13:15 respectively. So the "room:1:session_tokens" sorted set has the following entries:
+-- 	1. "token1" 14:00 (its equivalent timestamp, but we show time for easier understanding)
+-- 	2. "token2" 14:10
+-- 	3. "token3" 14:15
+
+-- Lets say 4th user arrives at 13:17 and since the current count >= maxActiveUsersCount, decision is "WAIT". The logic for estimated wait time:
+
+-- 	1. Get the lowest timestamp from sorted set using: ZRANGE room:1:session_tokens 0 0 WITHSCORES
+-- 		a. In our case, this returns "token1" 14:00
+-- 		b. If there are multiple, the above command still returns only 1 as our start and stop index are 0
+-- 	2. Estimated waiting time: 14:00 - 13:17 i.e. 43 minutes
+local function getEstimatedWaitingTime(key, sessionToken)
+    local estimatedWaitingTimeInMinutes = 0
+    local result = redis.pcall("ZRANGE", key, 0, 0, "WITHSCORES")
+    if isRedisError(result) then
+        redis.log(redis.LOG_NOTICE, "Failed to get estimated waiting time as ZRANGE failed for key " .. key .. " and session token " .. sessionToken)
+        return -1
+    end
+
+    -- if no data exists, returns an empty lua table: {}
+    -- if matching data exists, returns a lua table: {"token", "score"}
+    if next(result) == nil then
+        redis.log(redis.LOG_NOTICE, "No matching tokens by ZRANGE for key " .. key .. " and session token " .. sessionToken)
+        return estimatedWaitingTimeInMinutes
+    end
+    local lowestTimestamp = tonumber(result[2]) -- Scores are returned as strings in Lua
+    local currentTimestamp = getCurrentTimestamp()
+    local diff = lowestTimestamp - currentTimestamp
+    estimatedWaitingTimeInMinutes = math.ceil(diff / 60)
+    redis.log(redis.LOG_NOTICE, "lowestTimestamp " .. lowestTimestamp .. " currentTimestamp " .. currentTimestamp .. " diff " .. diff .. " estimatedWaitingTimeInMinutes " .. estimatedWaitingTimeInMinutes)
+    return estimatedWaitingTimeInMinutes
 end
 
 -- invoke as: FCALL waitingroomdecisionworkflow 0 roomid1 3 sessiontoken 5
@@ -60,6 +94,7 @@ local function executeWaitingRoomWorkflow(keys, args)
     local newTtl = currentTimestamp + ttl
     local roomSize = 0
     local waitingUsersSize = 0
+    local estimatedWaitingTimeInMinutes = 0
 
     -- Clear the sorted set using ZREMRANGEBYSCORE. This ensures that session tokens that have expired are removed and 
     -- hence allows us to determine the waiting room count without the need to maintain a separate key for count
@@ -114,6 +149,11 @@ local function executeWaitingRoomWorkflow(keys, args)
                 redis.log(redis.LOG_NOTICE, errMessage)
                 return { err = errMessage }
             end
+
+            -- compute estimated waiting time. 
+            -- Currently estimated waiting time is based on the next active session expiry.
+            -- This is not a guaranteed per-user queue wait time
+            estimatedWaitingTimeInMinutes = getEstimatedWaitingTime(key, sessionToken)
             decision = DECISION_WAIT
         end
     end
@@ -134,7 +174,7 @@ local function executeWaitingRoomWorkflow(keys, args)
         waitingUsersSize = waitingUsersLengthResult
     end
     
-    return { "decision", decision, "numberOfActiveUsers", roomSize, "numberOfWaitingUsers", waitingUsersSize}
+    return { "decision", decision, "numberOfActiveUsers", roomSize, "numberOfWaitingUsers", waitingUsersSize, "estimatedWaitingTimeInMinutes", estimatedWaitingTimeInMinutes}
 
 end
 

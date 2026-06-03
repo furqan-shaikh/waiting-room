@@ -35,9 +35,10 @@ type RedisFunctionRequest struct {
 }
 
 type RedisFunctionResponse struct {
-	Decision             string
-	NumberOfActiveUsers  int64
-	NumberOfWaitingUsers int64
+	Decision                      string
+	NumberOfActiveUsers           int64
+	NumberOfWaitingUsers          int64
+	EstimatedWaitingTimeInMinutes int64
 }
 
 var (
@@ -103,7 +104,7 @@ func InvokeRedisLibrary(args RedisFunctionRequest) (RedisFunctionResponse, error
 		return RedisFunctionResponse{}, errors.New("Unexpected response format from Redis")
 	}
 	log.Printf("Raw Redis Output: %v\n", sliceResult)
-	return RedisFunctionResponse{Decision: sliceResult[1].(string), NumberOfActiveUsers: sliceResult[3].(int64), NumberOfWaitingUsers: sliceResult[5].(int64)}, nil
+	return RedisFunctionResponse{Decision: sliceResult[1].(string), NumberOfActiveUsers: sliceResult[3].(int64), NumberOfWaitingUsers: sliceResult[5].(int64), EstimatedWaitingTimeInMinutes: sliceResult[7].(int64)}, nil
 }
 
 func Close() error {

@@ -52,11 +52,12 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status := models.WaitingRoomStatus{
-		RoomId:               roomId,
-		Decision:             redisFunctionResponse.Decision,
-		Origin:               waitingRoom.OriginApplication,
-		NumberOfActiveUsers:  redisFunctionResponse.NumberOfActiveUsers,
-		NumberOfWaitingUsers: redisFunctionResponse.NumberOfWaitingUsers,
+		RoomId:                        roomId,
+		Decision:                      redisFunctionResponse.Decision,
+		Origin:                        waitingRoom.OriginApplication,
+		NumberOfActiveUsers:           redisFunctionResponse.NumberOfActiveUsers,
+		NumberOfWaitingUsers:          redisFunctionResponse.NumberOfWaitingUsers,
+		EstimatedWaitingTimeInMinutes: redisFunctionResponse.EstimatedWaitingTimeInMinutes,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)
