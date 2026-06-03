@@ -116,9 +116,50 @@
                 gap: 16px;
             }
 
+            .stat--estimate {
+                align-items: flex-start;
+            }
+
             .stat-label {
                 color: var(--muted);
                 font-size: 0.875rem;
+            }
+
+            .stat-label--icon {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .dial-icon {
+                position: relative;
+                width: 18px;
+                height: 18px;
+                flex: 0 0 auto;
+                border: 2px solid var(--accent);
+                border-radius: 50%;
+            }
+
+            .dial-icon::before,
+            .dial-icon::after {
+                content: "";
+                position: absolute;
+                left: 50%;
+                bottom: 50%;
+                width: 2px;
+                border-radius: 999px;
+                background: var(--accent);
+                transform-origin: bottom center;
+            }
+
+            .dial-icon::before {
+                height: 6px;
+                transform: translateX(-50%) rotate(0deg);
+            }
+
+            .dial-icon::after {
+                height: 5px;
+                transform: translateX(-50%) rotate(120deg);
             }
 
             .stat-value {
@@ -129,6 +170,13 @@
                 line-height: 1;
                 text-align: right;
                 font-variant-numeric: tabular-nums;
+            }
+
+            .stat--estimate .stat-value {
+                max-width: 16rem;
+                font-size: 1rem;
+                line-height: 1.35;
+                white-space: normal;
             }
 
             .meter {
@@ -213,6 +261,13 @@
                 <div class="stat">
                     <span class="stat-label">Waiting users</span>
                     <strong class="stat-value" id="waiting-users">-</strong>
+                </div>
+                <div class="stat stat--estimate">
+                    <span class="stat-label stat-label--icon">
+                        <span class="dial-icon" aria-hidden="true"></span>
+                        Your Estimated Waiting Time in Minutes
+                    </span>
+                    <strong class="stat-value" id="estimated-waiting-time">-</strong>
                 </div>
             </section>
             <div class="meter" aria-hidden="true"><span></span></div>

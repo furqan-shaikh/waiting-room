@@ -35,6 +35,7 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
 - The admission service returns either `admit` or `wait` for a session.
 - Admitted users are redirected to the configured origin application.
 - Waiting users keep polling until capacity is available.
+- Waiting users can see an approximate estimated waiting time in minutes.
 
 ### Non-Functional Requirements
 
@@ -68,12 +69,13 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
      "decision": "admit",
      "origin": "http://localhost:8080",
      "numberOfActiveUsers": 1,
-     "numberOfWaitingUsers": 0
+     "numberOfWaitingUsers": 0,
+     "estimatedWaitingTimeInMinutes": 0
    }
    ```
 
 7. If the decision is `admit`, the browser redirects to the origin application.
-8. If the decision is `wait`, the browser stays on the waiting page and polls again.
+8. If the decision is `wait`, the browser stays on the waiting page, shows the estimated waiting time, and polls again.
 
 ## Architecture
 
@@ -377,9 +379,16 @@ Example response:
   "decision": "wait",
   "origin": "http://localhost:8080",
   "numberOfActiveUsers": 1,
-  "numberOfWaitingUsers": 1
+  "numberOfWaitingUsers": 1,
+  "estimatedWaitingTimeInMinutes": 9
 }
 ```
+
+`estimatedWaitingTimeInMinutes` is approximate:
+
+- `0` means the user is admitted, or the wait estimate is less than one minute.
+- `-1` means the estimate is unavailable.
+- Positive values are approximate minutes until the next active session expires.
 
 ## Postgres
 
@@ -434,6 +443,8 @@ room:<roomId>:waiting_users
 ```
 
 Each waiting user is stored by session token with a field-level expiry. Repeated polls from the same waiting session refresh the waiting TTL without increasing the waiting count. When a waiting session is admitted, it is removed from the waiting-users hash.
+
+When a user has to wait, the function estimates waiting time from the earliest active-session expiry in `room:<roomId>:session_tokens`. This is an approximate next-slot estimate, not a guaranteed per-user queue wait time.
 
 Manual Redis debugging commands:
 
@@ -493,7 +504,7 @@ Then open the waiting room app in an incognito window or a different browser:
 http://localhost:3333/waitingRooms/<roomId>
 ```
 
-The terminal session occupies the only active slot, so the browser session should remain waiting and display the active and waiting user counts.
+The terminal session occupies the only active slot, so the browser session should remain waiting and display the active user count, waiting user count, and estimated waiting time. If the estimate is unavailable, the UI shows an unavailable message instead of a minute value.
 
 ## Design Notes
 
@@ -502,6 +513,7 @@ The terminal session occupies the only active slot, so the browser session shoul
 - Waiting room configuration is cached in memory inside the Admission Service to avoid hitting Postgres on every status check.
 - Cache invalidation is currently TTL-based. A future version can use streaming or pub/sub to push config changes to Admission Service instances.
 - Redis is used for the admission decision because the sorted-set cleanup, capacity check, and session insertion need to happen atomically.
+- Estimated waiting time is based on the next active session expiry. It is intentionally approximate because the MVP does not maintain a FIFO waiting queue.
 - The session token is set by the server as an HTTP-only cookie so client-side JavaScript does not need to create or manage identity.
 
 ## Future Features And Limitations
@@ -510,7 +522,6 @@ This project is currently an MVP and intentionally leaves several production con
 
 ### Functional
 
-- Show estimated waiting time to users.
 - Show queue position or number of users ahead.
 - Add admin APIs to update waiting room configuration.
 - Add admin APIs to list waiting rooms.

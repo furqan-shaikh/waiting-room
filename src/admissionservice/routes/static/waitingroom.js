@@ -9,6 +9,7 @@
     var nextCheck = document.getElementById("next-check");
     var activeUsers = document.getElementById("active-users");
     var waitingUsers = document.getElementById("waiting-users");
+    var estimatedWaitingTime = document.getElementById("estimated-waiting-time");
 
     var roomId = getRoomIdFromPath(window.location.pathname);
     var pollTimer = null;
@@ -58,6 +59,19 @@
         return "/waitingRooms/" + encodeURIComponent(roomId) + "/status";
     }
 
+    function handleEstimatedWaitingTime(payload) {
+        var estimatedWaitingTimeInMinutes = payload.estimatedWaitingTimeInMinutes
+        var value = ""
+        if (estimatedWaitingTimeInMinutes == 0) {
+            value = "Less than 1 minute"
+        } else if (estimatedWaitingTimeInMinutes == -1) {
+            value = "Sorry, estimated waiting time is not available"
+        } else {
+            value = estimatedWaitingTimeInMinutes
+        }
+        estimatedWaitingTime.textContent = value
+    }
+
     function handleDecision(payload) {
         if (!payload || typeof payload.decision !== "string") {
             throw new Error("Invalid status response");
@@ -74,6 +88,7 @@
 
         if (payload.decision === "wait") {
             setState("waiting", "You are in line", "Your session is waiting for an available slot.");
+            handleEstimatedWaitingTime(payload)
             scheduleNextCheck();
             return;
         }

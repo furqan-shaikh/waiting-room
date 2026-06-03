@@ -65,11 +65,12 @@ type ValidationError struct {
 }
 
 type WaitingRoomStatus struct {
-	RoomId               string `json:"roomId"`
-	Decision             string `json:"decision"`
-	Origin               string `json:"origin"`
-	NumberOfActiveUsers  int64  `json:"numberOfActiveUsers"`
-	NumberOfWaitingUsers int64  `json:"numberOfWaitingUsers"`
+	RoomId                        string `json:"roomId"`
+	Decision                      string `json:"decision"`
+	Origin                        string `json:"origin"`
+	NumberOfActiveUsers           int64  `json:"numberOfActiveUsers"`
+	NumberOfWaitingUsers          int64  `json:"numberOfWaitingUsers"`
+	EstimatedWaitingTimeInMinutes int64  `json:"estimatedWaitingTimeInMinutes"`
 }
 
 func (e *ValidationError) Error() string {
