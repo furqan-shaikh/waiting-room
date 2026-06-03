@@ -64,6 +64,10 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 			if roomConfigFromCache.WaitingSessionTtlSeconds == 0 {
 				roomConfigFromCache.WaitingSessionTtlSeconds = models.DefaultWaitingSessionTtlInSeconds
 			}
+
+			if roomConfigFromCache.PollingIntervalSeconds == 0 {
+				roomConfigFromCache.PollingIntervalSeconds = models.DefaultPollingIntervalInSeconds
+			}
 			return roomConfigFromCache, nil
 		}
 	}
@@ -83,6 +87,11 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 	if waitingRoomFromDb.WaitingSessionTtlSeconds != 0 {
 		waitingSessionTtlInSeconds = waitingRoomFromDb.WaitingSessionTtlSeconds
 	}
+
+	pollingIntervalSeconds := models.DefaultPollingIntervalInSeconds
+	if waitingRoomFromDb.PollingIntervalSeconds != 0 {
+		pollingIntervalSeconds = waitingRoomFromDb.PollingIntervalSeconds
+	}
 	newWaitingRoomFromDb := models.WaitingRoom{
 		RoomId:                   waitingRoomFromDb.RoomId,
 		CreatedAt:                waitingRoomFromDb.CreatedAt,
@@ -92,6 +101,7 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 		OriginApplication:        waitingRoomFromDb.OriginApplication,
 		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
 		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
+		PollingIntervalSeconds:   pollingIntervalSeconds,
 	}
 
 	// 4. Set in cache

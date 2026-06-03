@@ -58,6 +58,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		NumberOfActiveUsers:           redisFunctionResponse.NumberOfActiveUsers,
 		NumberOfWaitingUsers:          redisFunctionResponse.NumberOfWaitingUsers,
 		EstimatedWaitingTimeInMinutes: redisFunctionResponse.EstimatedWaitingTimeInMinutes,
+		PollingIntervalSeconds:        waitingRoom.PollingIntervalSeconds,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)

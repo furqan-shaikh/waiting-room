@@ -9,12 +9,14 @@ const StatusActive = "ACTIVE"
 const StatusDeleted = "DELETED"
 const DefaultActiveSessionTtlInSeconds = 10
 const DefaultWaitingSessionTtlInSeconds = 600
+const DefaultPollingIntervalInSeconds = 30
 
 type CreateWaitingRoomRequest struct {
 	MaxActiveUsersCount      int    `json:"maxActiveUsersCount"`      // Required
 	OriginApplication        string `json:"originApplication"`        // Required
 	ActiveSessionTtlSeconds  int    `json:"activeSessionTtlSeconds"`  // Optional
 	WaitingSessionTtlSeconds int    `json:"waitingSessionTtlSeconds"` // Optional
+	PollingIntervalSeconds   int    `json:"pollingIntervalSeconds"`   // Optional
 }
 
 const BadRequestCode = "BadRequest"
@@ -45,6 +47,7 @@ type WaitingRoom struct {
 	OriginApplication        string    `json:"originApplication"`
 	ActiveSessionTtlSeconds  int       `json:"activeSessionTtlSeconds"`
 	WaitingSessionTtlSeconds int       `json:"waitingSessionTtlSeconds"`
+	PollingIntervalSeconds   int       `json:"pollingIntervalSeconds"`
 }
 
 type GetWaitingRoomRequest struct {
@@ -71,6 +74,7 @@ type WaitingRoomStatus struct {
 	NumberOfActiveUsers           int64  `json:"numberOfActiveUsers"`
 	NumberOfWaitingUsers          int64  `json:"numberOfWaitingUsers"`
 	EstimatedWaitingTimeInMinutes int64  `json:"estimatedWaitingTimeInMinutes"`
+	PollingIntervalSeconds        int    `json:"pollingIntervalSeconds"`
 }
 
 func (e *ValidationError) Error() string {

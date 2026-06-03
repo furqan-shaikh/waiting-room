@@ -65,6 +65,11 @@ func getWaitingRoomEntity(request models.CreateWaitingRoomRequest) models.Waitin
 		waitingSessionTtlInSeconds = request.WaitingSessionTtlSeconds
 	}
 
+	pollingIntervalSeconds := models.DefaultPollingIntervalInSeconds
+	if request.PollingIntervalSeconds != 0 {
+		pollingIntervalSeconds = request.PollingIntervalSeconds
+	}
+
 	return models.WaitingRoom{
 		RoomId:                   room_id,
 		CreatedAt:                nowUTC,
@@ -74,6 +79,7 @@ func getWaitingRoomEntity(request models.CreateWaitingRoomRequest) models.Waitin
 		Status:                   models.StatusActive,
 		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
 		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
+		PollingIntervalSeconds:   pollingIntervalSeconds,
 	}
 }
 
@@ -92,6 +98,11 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 	if waitingRoom.WaitingSessionTtlSeconds != 0 {
 		waitingSessionTtlInSeconds = waitingRoom.WaitingSessionTtlSeconds
 	}
+
+	pollingIntervalSeconds := models.DefaultPollingIntervalInSeconds
+	if waitingRoom.PollingIntervalSeconds != 0 {
+		pollingIntervalSeconds = waitingRoom.PollingIntervalSeconds
+	}
 	newWaitingRoomModel := models.WaitingRoom{
 		RoomId:                   waitingRoom.RoomId,
 		CreatedAt:                waitingRoom.CreatedAt,
@@ -101,6 +112,7 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 		OriginApplication:        waitingRoom.OriginApplication,
 		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
 		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
+		PollingIntervalSeconds:   pollingIntervalSeconds,
 	}
 	return newWaitingRoomModel, nil
 }
@@ -138,6 +150,13 @@ func validateWaitingRoomRequest(request models.CreateWaitingRoomRequest) []model
 		messages = append(messages, models.ValidationErrorItem{
 			Field:   "waitingSessionTtlSeconds",
 			Message: "waitingSessionTtlSeconds must be greater than 0 when provided",
+		})
+	}
+
+	if request.PollingIntervalSeconds < 0 {
+		messages = append(messages, models.ValidationErrorItem{
+			Field:   "pollingIntervalSeconds",
+			Message: "pollingIntervalSeconds must be greater than 0 when provided",
 		})
 	}
 	return messages

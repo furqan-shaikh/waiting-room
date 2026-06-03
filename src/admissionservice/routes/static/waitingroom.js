@@ -1,7 +1,7 @@
 (function () {
     "use strict";
 
-    var POLL_INTERVAL_MS = 10000;
+    var POLL_INTERVAL_MS = 30000;
 
     var statusTitle = document.getElementById("status-title");
     var statusMessage = document.getElementById("status-message");
@@ -47,7 +47,7 @@
             })
             .then(handleDecision)
             .catch(function (err) {
-                showError("Could not check your place", "We will try again in 10 seconds.");
+                showError("Could not check your place", "We will try again in 30 seconds.");
                 scheduleNextCheck();
                 if (window.console && typeof window.console.warn === "function") {
                     window.console.warn(err);
@@ -89,7 +89,7 @@
         if (payload.decision === "wait") {
             setState("waiting", "You are in line", "Your session is waiting for an available slot.");
             handleEstimatedWaitingTime(payload)
-            scheduleNextCheck();
+            scheduleNextCheck(payload.pollingIntervalSeconds*1000); // convert to ms as service sends in seconds
             return;
         }
 
@@ -114,8 +114,8 @@
         window.location.assign(origin);
     }
 
-    function scheduleNextCheck() {
-        var remainingSeconds = POLL_INTERVAL_MS / 1000;
+    function scheduleNextCheck(pollingInterval = POLL_INTERVAL_MS) {
+        var remainingSeconds = pollingInterval / 1000;
         nextCheck.textContent = remainingSeconds + "s";
 
         countdownTimer = window.setInterval(function () {
@@ -123,7 +123,7 @@
             nextCheck.textContent = remainingSeconds > 0 ? remainingSeconds + "s" : "now";
         }, 1000);
 
-        pollTimer = window.setTimeout(checkStatus, POLL_INTERVAL_MS);
+        pollTimer = window.setTimeout(checkStatus, pollingInterval);
     }
 
     function showError(title, message) {

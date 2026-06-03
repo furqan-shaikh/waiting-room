@@ -28,6 +28,7 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
   - origin application URL
   - optional active session TTL in seconds
   - optional waiting session TTL in seconds
+  - optional polling interval in seconds
 - An admin can fetch an active waiting room by room ID.
 - An admin can delete a waiting room using soft delete.
 - A user can visit a waiting room URL served by the admission service.
@@ -301,14 +302,15 @@ http://localhost:3333/waitingRooms/<roomId>
 ```bash
 curl -X POST \
   -H "Content-Type: application/json" \
-  -d '{"maxActiveUsersCount":1,"originApplication":"http://localhost:8080","activeSessionTtlSeconds":10,"waitingSessionTtlSeconds":600}' \
+  -d '{"maxActiveUsersCount":1,"originApplication":"http://localhost:8080","activeSessionTtlSeconds":10,"waitingSessionTtlSeconds":600,"pollingIntervalSeconds":30}' \
   http://localhost:3000/waitingRooms
 ```
 
-The TTL fields are optional. If omitted or set to `0`, the Control Plane applies defaults:
+The TTL and polling fields are optional. If omitted or set to `0`, the Control Plane applies defaults:
 
 - `activeSessionTtlSeconds`: `10`
 - `waitingSessionTtlSeconds`: `600`
+- `pollingIntervalSeconds`: `30`
 
 Example response:
 
@@ -321,7 +323,8 @@ Example response:
   "maxActiveUsersCount": 1,
   "originApplication": "http://localhost:8080",
   "activeSessionTtlSeconds": 10,
-  "waitingSessionTtlSeconds": 600
+  "waitingSessionTtlSeconds": 600,
+  "pollingIntervalSeconds": 30
 }
 ```
 
@@ -342,7 +345,8 @@ Example response:
   "maxActiveUsersCount": 1,
   "originApplication": "http://localhost:8080",
   "activeSessionTtlSeconds": 10,
-  "waitingSessionTtlSeconds": 600
+  "waitingSessionTtlSeconds": 600,
+  "pollingIntervalSeconds": 30
 }
 ```
 
@@ -380,7 +384,8 @@ Example response:
   "origin": "http://localhost:8080",
   "numberOfActiveUsers": 1,
   "numberOfWaitingUsers": 1,
-  "estimatedWaitingTimeInMinutes": 9
+  "estimatedWaitingTimeInMinutes": 9,
+  "pollingIntervalSeconds": 30
 }
 ```
 
@@ -403,11 +408,12 @@ CREATE TABLE IF NOT EXISTS waitingrooms(
     origin_application TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DELETED')),
     active_session_ttl_seconds INTEGER CHECK (active_session_ttl_seconds > 0),
-    waiting_session_ttl_seconds INTEGER CHECK (waiting_session_ttl_seconds > 0)
+    waiting_session_ttl_seconds INTEGER CHECK (waiting_session_ttl_seconds > 0),
+    polling_interval_seconds INTEGER CHECK (polling_interval_seconds > 0)
 );
 ```
 
-The TTL columns are nullable so existing waiting rooms can survive the migration. Services resolve missing TTL values to the same defaults returned by the Control Plane.
+The TTL and polling interval columns are nullable so existing waiting rooms can survive migrations. Services resolve missing values to the same defaults returned by the Control Plane.
 
 Migrations live in:
 
@@ -514,6 +520,7 @@ The terminal session occupies the only active slot, so the browser session shoul
 - Cache invalidation is currently TTL-based. A future version can use streaming or pub/sub to push config changes to Admission Service instances.
 - Redis is used for the admission decision because the sorted-set cleanup, capacity check, and session insertion need to happen atomically.
 - Estimated waiting time is based on the next active session expiry. It is intentionally approximate because the MVP does not maintain a FIFO waiting queue.
+- Polling interval is waiting room configuration. The Admission Service returns it in the status response, and the UI uses it to schedule the next status check.
 - The session token is set by the server as an HTTP-only cookie so client-side JavaScript does not need to create or manage identity.
 
 ## Future Features And Limitations
@@ -526,7 +533,6 @@ This project is currently an MVP and intentionally leaves several production con
 - Add admin APIs to update waiting room configuration.
 - Add admin APIs to list waiting rooms.
 - Add support for pausing, activating, and deleting waiting rooms.
-- Add configurable polling interval per waiting room.
 - Add custom waiting room UI configuration per room.
 - Revisit the MVP assumption that the Admission Service directly serves the waiting room app.
 
