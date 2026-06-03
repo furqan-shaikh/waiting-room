@@ -58,7 +58,7 @@ func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Conte
 		return false, errors.New("Call NewRepository before invoking repository methods")
 	}
 	// construct insert parameterized query
-	query := `INSERT INTO waitingrooms (room_id, created_at, updated_at, max_active_users_count, origin_application, status, active_session_ttl_seconds, waiting_session_ttl_seconds) VALUES (@room_id, @created_at, @updated_at, @max_active_users_count, @origin_application, @status, @active_session_ttl_seconds, @waiting_session_ttl_seconds)`
+	query := `INSERT INTO waitingrooms (room_id, created_at, updated_at, max_active_users_count, origin_application, status, active_session_ttl_seconds, waiting_session_ttl_seconds, polling_interval_seconds) VALUES (@room_id, @created_at, @updated_at, @max_active_users_count, @origin_application, @status, @active_session_ttl_seconds, @waiting_session_ttl_seconds, @polling_interval_seconds)`
 	args := pgx.NamedArgs{
 		"room_id":                     request.RoomId,
 		"max_active_users_count":      request.MaxActiveUsersCount,
@@ -68,6 +68,7 @@ func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Conte
 		"updated_at":                  request.UpdatedAt,
 		"active_session_ttl_seconds":  request.ActiveSessionTtlSeconds,
 		"waiting_session_ttl_seconds": request.WaitingSessionTtlSeconds,
+		"polling_interval_seconds":    request.PollingIntervalSeconds,
 	}
 	log.Printf("Inserting waiting room into pg table: %v", request.RoomId)
 	_, err := pgrepository.pgConnectionPool.Exec(ctx, query, args)
@@ -93,7 +94,8 @@ func (pgrepository *PgWaitingRoomRepository) GetWaitingRoom(ctx context.Context,
   					origin_application,
   					status, 
 					COALESCE(active_session_ttl_seconds, 0) AS active_session_ttl_seconds,
-					COALESCE(waiting_session_ttl_seconds, 0) AS waiting_session_ttl_seconds
+					COALESCE(waiting_session_ttl_seconds, 0) AS waiting_session_ttl_seconds,
+					COALESCE(polling_interval_seconds, 0) AS polling_interval_seconds
 			  FROM waitingrooms WHERE room_id = @room_id AND status = @status`
 	args := pgx.NamedArgs{
 		"room_id": request.RoomId,

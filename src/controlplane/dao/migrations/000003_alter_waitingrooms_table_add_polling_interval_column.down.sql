@@ -1,0 +1,2 @@
+ALTER TABLE waitingrooms
+DROP COLUMN polling_interval_seconds;
