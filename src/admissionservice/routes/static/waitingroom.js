@@ -10,6 +10,7 @@
     var activeUsers = document.getElementById("active-users");
     var waitingUsers = document.getElementById("waiting-users");
     var estimatedWaitingTime = document.getElementById("estimated-waiting-time");
+    var queuePosition = document.getElementById("queue-position");
 
     var roomId = getRoomIdFromPath(window.location.pathname);
     var pollTimer = null;
@@ -72,6 +73,19 @@
         estimatedWaitingTime.textContent = value
     }
 
+    function handleQueuePosition(payload) {
+        var queuePositionValue = payload.queuePosition
+        var value = ""
+        if (queuePositionValue == 0) {
+            value = "Congrats, you are first in line"
+        } else if (queuePositionValue == -1) {
+            value = "Sorry, your queue position is not available"
+        } else {
+            value = queuePositionValue
+        }
+        queuePosition.textContent = value
+    }
+
     function handleDecision(payload) {
         if (!payload || typeof payload.decision !== "string") {
             throw new Error("Invalid status response");
@@ -89,6 +103,7 @@
         if (payload.decision === "wait") {
             setState("waiting", "You are in line", "Your session is waiting for an available slot.");
             handleEstimatedWaitingTime(payload)
+            handleQueuePosition(payload)
             scheduleNextCheck(payload.pollingIntervalSeconds*1000); // convert to ms as service sends in seconds
             return;
         }

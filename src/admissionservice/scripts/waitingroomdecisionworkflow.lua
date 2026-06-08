@@ -1,5 +1,10 @@
 #!lua name=waitingroomdecisionworkflow
 
+--constants
+local MINIMUM_TIMESTAMP = "-inf"
+local DECISION_ADMIT = "admit"
+local DECISION_WAIT = "wait"
+
 local function isRedisError(result)
     if type(result) == "table" and result.err then
         redis.log(redis.LOG_NOTICE, result.err)
@@ -71,14 +76,54 @@ local function getEstimatedWaitingTime(key, sessionToken)
     return estimatedWaitingTimeInMinutes
 end
 
+local function getQueuePosition(queuePositionKey, sessionToken, waitingUsersKey)
+    local queuePosition = 0 -- return -1 if any failure is encountered.
+    local score = getCurrentTimestamp()
+
+    local zscoreResult = redis.pcall("ZSCORE", queuePositionKey, sessionToken)
+    if isRedisError(zscoreResult) then
+        redis.log(redis.LOG_NOTICE, "Failed to check if session token present in queue position sorted set " .. queuePositionKey .. " and session token " .. sessionToken)
+        return -1
+    end
+
+    redis.log(redis.LOG_NOTICE, "zscoreResult " .. tostring(zscoreResult) .. " type " .. type(zscoreResult))
+    if zscoreResult == false then
+        local addResult = redis.pcall("ZADD", queuePositionKey, score, sessionToken)
+        if isRedisError(addResult) then
+            redis.log(redis.LOG_NOTICE, "Failed to add session token to queue position sorted set " .. queuePositionKey .. " and session token " .. sessionToken)
+            return -1
+        end
+    else 
+        score = zscoreResult
+    end
+
+    local zrangeResult = redis.pcall("ZRANGE", queuePositionKey, MINIMUM_TIMESTAMP, score, "BYSCORE")
+    if isRedisError(zrangeResult) then
+        redis.log(redis.LOG_NOTICE, "Failed zrange on queue position sorted set " .. queuePositionKey .. " and session token " .. sessionToken .. "score " .. score)
+        return -1
+    end
+
+    -- if no data exists, returns an empty lua table: {}
+    -- if matching data exists, ZRANGE ... BYSCORE without WITHSCORES returns a flat list of members.
+    if next(zrangeResult) == nil then
+        return 1
+    end
+    for index, token in pairs(zrangeResult) do
+        local isInHashResult = redis.pcall("HEXISTS", waitingUsersKey, token)
+        if isRedisError(isInHashResult) then
+            redis.log(redis.LOG_NOTICE, "Failed to check if session token exists in waiting users, bailing out queue position " .. waitingUsersKey)
+            return -1
+        end
+        if isInHashResult == 1 then
+            queuePosition = queuePosition + 1
+        end
+    end
+
+    return queuePosition
+end
+
 -- invoke as: FCALL waitingroomdecisionworkflow 0 roomid1 3 sessiontoken 5
 local function executeWaitingRoomWorkflow(keys, args)
-    
-    -- -- constants
-    local MINIMUM_TIMESTAMP = "-inf"
-    local DECISION_ADMIT = "admit"
-    local DECISION_WAIT = "wait"
-
     -- arguments
     local roomId = args[1]
     local maxActiveUserCount = tonumber(args[2])
@@ -89,12 +134,14 @@ local function executeWaitingRoomWorkflow(keys, args)
     -- construct key name for storing session tokens. Key is created per waiting room
     local key = "room:" .. roomId .. ":session_tokens"
     local waitingUsersKey = "room:" .. roomId .. ":waiting_users"
+    local queuePositionKey = "room:" .. roomId .. ":queue_position"
     local decision = ""
     local currentTimestamp = getCurrentTimestamp()
     local newTtl = currentTimestamp + ttl
     local roomSize = 0
     local waitingUsersSize = 0
     local estimatedWaitingTimeInMinutes = 0
+    local queuePosition = 0
 
     -- Clear the sorted set using ZREMRANGEBYSCORE. This ensures that session tokens that have expired are removed and 
     -- hence allows us to determine the waiting room count without the need to maintain a separate key for count
@@ -154,6 +201,9 @@ local function executeWaitingRoomWorkflow(keys, args)
             -- Currently estimated waiting time is based on the next active session expiry.
             -- This is not a guaranteed per-user queue wait time
             estimatedWaitingTimeInMinutes = getEstimatedWaitingTime(key, sessionToken)
+
+            -- compute queue position
+            queuePosition = getQueuePosition(queuePositionKey, sessionToken, waitingUsersKey)
             decision = DECISION_WAIT
         end
     end
@@ -163,6 +213,11 @@ local function executeWaitingRoomWorkflow(keys, args)
         local removeWaitingUserResult = redis.pcall("HDEL", waitingUsersKey, sessionToken)
         if isRedisError(removeWaitingUserResult) then
             redis.log(redis.LOG_NOTICE, "Failed to remove session token from waiting users for key " .. waitingUsersKey .. " and session token " .. sessionToken)
+        end
+
+        local removeQueuePositionResult = redis.pcall("ZREM", queuePositionKey, sessionToken)
+        if isRedisError(removeQueuePositionResult) then
+            redis.log(redis.LOG_NOTICE, "Failed to remove session token from queue position for key " .. queuePositionKey .. " and session token " .. sessionToken)
         end
     end
 
@@ -174,7 +229,7 @@ local function executeWaitingRoomWorkflow(keys, args)
         waitingUsersSize = waitingUsersLengthResult
     end
     
-    return { "decision", decision, "numberOfActiveUsers", roomSize, "numberOfWaitingUsers", waitingUsersSize, "estimatedWaitingTimeInMinutes", estimatedWaitingTimeInMinutes}
+    return { "decision", decision, "numberOfActiveUsers", roomSize, "numberOfWaitingUsers", waitingUsersSize, "estimatedWaitingTimeInMinutes", estimatedWaitingTimeInMinutes, "queuePosition", queuePosition}
 
 end
 

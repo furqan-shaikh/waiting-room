@@ -37,6 +37,7 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
 - Admitted users are redirected to the configured origin application.
 - Waiting users keep polling until capacity is available.
 - Waiting users can see an approximate estimated waiting time in minutes.
+- Waiting users can see their queue position.
 
 ### Non-Functional Requirements
 
@@ -71,12 +72,13 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
      "origin": "http://localhost:8080",
      "numberOfActiveUsers": 1,
      "numberOfWaitingUsers": 0,
-     "estimatedWaitingTimeInMinutes": 0
+     "estimatedWaitingTimeInMinutes": 0,
+     "queuePosition": 0
    }
    ```
 
 7. If the decision is `admit`, the browser redirects to the origin application.
-8. If the decision is `wait`, the browser stays on the waiting page, shows the estimated waiting time, and polls again.
+8. If the decision is `wait`, the browser stays on the waiting page, shows the estimated waiting time and queue position, and polls again.
 
 ## Architecture
 
@@ -385,6 +387,7 @@ Example response:
   "numberOfActiveUsers": 1,
   "numberOfWaitingUsers": 1,
   "estimatedWaitingTimeInMinutes": 9,
+  "queuePosition": 1,
   "pollingIntervalSeconds": 30
 }
 ```
@@ -394,6 +397,12 @@ Example response:
 - `0` means the user is admitted, or the wait estimate is less than one minute.
 - `-1` means the estimate is unavailable.
 - Positive values are approximate minutes until the next active session expires.
+
+`queuePosition` is the user's position in the waiting zone:
+
+- `0` means the user is admitted.
+- `1` means the user is first in line.
+- `-1` means the queue position is unavailable.
 
 ## Postgres
 
@@ -449,6 +458,14 @@ room:<roomId>:waiting_users
 ```
 
 Each waiting user is stored by session token with a field-level expiry. Repeated polls from the same waiting session refresh the waiting TTL without increasing the waiting count. When a waiting session is admitted, it is removed from the waiting-users hash.
+
+The function stores queue order in a sorted set per waiting room:
+
+```text
+room:<roomId>:queue_position
+```
+
+The queue-position score is the timestamp when the session first entered the waiting zone. Repeated polls keep the original score so the user's queue position does not move backward. Queue position counts only tokens that still exist in the waiting-users hash, so expired waiting users are ignored.
 
 When a user has to wait, the function estimates waiting time from the earliest active-session expiry in `room:<roomId>:session_tokens`. This is an approximate next-slot estimate, not a guaranteed per-user queue wait time.
 
@@ -510,7 +527,7 @@ Then open the waiting room app in an incognito window or a different browser:
 http://localhost:3333/waitingRooms/<roomId>
 ```
 
-The terminal session occupies the only active slot, so the browser session should remain waiting and display the active user count, waiting user count, and estimated waiting time. If the estimate is unavailable, the UI shows an unavailable message instead of a minute value.
+The terminal session occupies the only active slot, so the browser session should remain waiting and display the active user count, waiting user count, estimated waiting time, and queue position. If the estimate or queue position is unavailable, the UI shows an unavailable message instead of a numeric value.
 
 ## Design Notes
 
@@ -520,6 +537,7 @@ The terminal session occupies the only active slot, so the browser session shoul
 - Cache invalidation is currently TTL-based. A future version can use streaming or pub/sub to push config changes to Admission Service instances.
 - Redis is used for the admission decision because the sorted-set cleanup, capacity check, and session insertion need to happen atomically.
 - Estimated waiting time is based on the next active session expiry. It is intentionally approximate because the MVP does not maintain a FIFO waiting queue.
+- Queue position is based on the first time a session enters the waiting zone. It is stable across repeated polls for the same session.
 - Polling interval is waiting room configuration. The Admission Service returns it in the status response, and the UI uses it to schedule the next status check.
 - The session token is set by the server as an HTTP-only cookie so client-side JavaScript does not need to create or manage identity.
 
@@ -529,7 +547,6 @@ This project is currently an MVP and intentionally leaves several production con
 
 ### Functional
 
-- Show queue position or number of users ahead.
 - Add admin APIs to update waiting room configuration.
 - Add admin APIs to list waiting rooms.
 - Add support for pausing, activating, and deleting waiting rooms.
