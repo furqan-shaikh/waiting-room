@@ -75,6 +75,7 @@ type WaitingRoomStatus struct {
 	NumberOfWaitingUsers          int64  `json:"numberOfWaitingUsers"`
 	EstimatedWaitingTimeInMinutes int64  `json:"estimatedWaitingTimeInMinutes"`
 	PollingIntervalSeconds        int    `json:"pollingIntervalSeconds"`
+	QueuePosition                 int64  `json:"queuePosition"`
 }
 
 func (e *ValidationError) Error() string {

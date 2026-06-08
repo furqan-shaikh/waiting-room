@@ -162,6 +162,39 @@
                 transform: translateX(-50%) rotate(120deg);
             }
 
+            .queue-icon {
+                position: relative;
+                width: 18px;
+                height: 18px;
+                flex: 0 0 auto;
+            }
+
+            .queue-icon,
+            .queue-icon::before,
+            .queue-icon::after {
+                border: 2px solid var(--accent);
+                border-radius: 50%;
+            }
+
+            .queue-icon::before,
+            .queue-icon::after {
+                content: "";
+                position: absolute;
+                top: 50%;
+                width: 9px;
+                height: 9px;
+                background: var(--panel);
+                transform: translateY(-50%);
+            }
+
+            .queue-icon::before {
+                left: -8px;
+            }
+
+            .queue-icon::after {
+                right: -8px;
+            }
+
             .stat-value {
                 min-width: 4ch;
                 color: var(--text);
@@ -268,6 +301,14 @@
                         Your Estimated Waiting Time in Minutes
                     </span>
                     <strong class="stat-value" id="estimated-waiting-time">-</strong>
+                </div>
+
+                <div class="stat stat--estimate">
+                    <span class="stat-label stat-label--icon">
+                        <span class="queue-icon" aria-hidden="true"></span>
+                        Your Queue Position
+                    </span>
+                    <strong class="stat-value" id="queue-position">-</strong>
                 </div>
             </section>
             <div class="meter" aria-hidden="true"><span></span></div>
