@@ -16,8 +16,9 @@ This repository currently contains an MVP for the core admission decision flow:
 - Redis-backed admission decisions using a Redis Function.
 - Session tracking through an HTTP-only cookie.
 - Shared Go module for models and Postgres repository code used by both services.
+- RFC 9421 HTTP Message Signatures for Control Plane API authentication.
 
-Tests, Docker packaging, deployment, auth, and production configuration are still pending.
+Automated tests, deployment, authorization, and production configuration are still pending.
 
 ## Requirements
 
@@ -29,6 +30,7 @@ Tests, Docker packaging, deployment, auth, and production configuration are stil
   - optional active session TTL in seconds
   - optional waiting session TTL in seconds
   - optional polling interval in seconds
+- Control Plane admin API requests must be authenticated using RFC 9421 HTTP Message Signatures.
 - An admin can fetch an active waiting room by room ID.
 - An admin can delete a waiting room using soft delete.
 - A user can visit a waiting room URL served by the admission service.
@@ -167,6 +169,27 @@ The migration Makefile uses `PG_DATABASE_URL`. If you do not set it, the Makefil
 export PG_DATABASE_URL="postgres://wr:wr@localhost:5432/waitingroomdb?sslmode=disable"
 ```
 
+### Configure Control Plane Environment
+
+The Control Plane loads an optional `.env` file from its working directory. For local development, create:
+
+```text
+src/controlplane/.env
+```
+
+Example:
+
+```env
+PG_DATABASE_URL=postgres://wr:wr@localhost:5432/waitingroomdb?sslmode=disable
+KEY_LOOKUP_TYPE=local
+KEY_LOOKUP_TYPE_LOCAL_PATH=./testdriver
+KEY_LOOKUP_TYPE_LOCAL_EXTENSION=.key
+```
+
+`KEY_LOOKUP_TYPE=local` tells the authentication middleware to use the local filesystem public-key repository. When running `make run` from `src/controlplane`, `./testdriver` resolves to `src/controlplane/testdriver`.
+
+Local `.env` files are ignored by git. Keep machine-specific values and secrets out of the repository.
+
 ### Run Migrations
 
 ```bash
@@ -220,11 +243,19 @@ Run the container:
 ```bash
 docker run --rm \
   -p 3000:3000 \
+  -v "$PWD/controlplane/testdriver:/control-plane/testdriver:ro" \
   -e PG_DATABASE_URL="postgres://wr:wr@host.docker.internal:5432/waitingroomdb?sslmode=disable" \
+  -e KEY_LOOKUP_TYPE="local" \
+  -e KEY_LOOKUP_TYPE_LOCAL_PATH="/control-plane/testdriver" \
+  -e KEY_LOOKUP_TYPE_LOCAL_EXTENSION=".key" \
   waiting-room/control-plane:0.1
 ```
 
 When the Control Plane runs inside Docker, use `host.docker.internal` in `PG_DATABASE_URL` to connect to Postgres running on the host machine. Use `localhost` only when running the service directly on the host.
+
+For Docker-based auth testing with the local filesystem key repository, the public key must exist at the path configured by `KEY_LOOKUP_TYPE_LOCAL_PATH` inside the container. The volume mount above exposes `src/controlplane/testdriver` from the host as `/control-plane/testdriver` in the container. For the current POC, running the Control Plane directly on the host is the simpler signed-request test flow.
+
+Control Plane APIs require HTTP Message Signature authentication. The following commands show the endpoint shape, but unsigned requests return `401 Unauthorized`; use the local signed client described in the API examples section when exercising the authenticated path.
 
 In another terminal, create a waiting room:
 
@@ -298,6 +329,27 @@ http://localhost:3333/waitingRooms/<roomId>
 ```
 
 ## API Examples
+
+Control Plane APIs are protected by RFC 9421 HTTP Message Signatures. Plain `curl` examples below show the request shape, but unsigned requests will return `401 Unauthorized`. For design details, see:
+
+```text
+Documents/auth.md
+```
+
+For the current local POC, use the signed client in:
+
+```text
+src/controlplane/testdriver
+```
+
+Run it from that directory so the generated public key is written where the local filesystem key repository expects it:
+
+```bash
+cd src/controlplane/testdriver
+go run .
+```
+
+Keep the test driver's `expires` value within the configured 15-minute maximum signature lifetime when testing the success plus replay path.
 
 ### Create Waiting Room
 
@@ -406,7 +458,9 @@ Example response:
 
 ## Postgres
 
-The MVP uses one table:
+The MVP uses tables for waiting room configuration and Control Plane replay protection.
+
+Waiting room configuration:
 
 ```sql
 CREATE TABLE IF NOT EXISTS waitingrooms(
@@ -423,6 +477,19 @@ CREATE TABLE IF NOT EXISTS waitingrooms(
 ```
 
 The TTL and polling interval columns are nullable so existing waiting rooms can survive migrations. Services resolve missing values to the same defaults returned by the Control Plane.
+
+HTTP Message Signature nonce storage:
+
+```sql
+CREATE TABLE IF NOT EXISTS nonces(
+    key_id TEXT NOT NULL,
+    nonce_value TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (key_id, nonce_value)
+);
+```
+
+`nonces` prevents replay of signed Control Plane API requests. The uniqueness constraint on `(key_id, nonce_value)` makes nonce insertion atomic even when duplicate requests arrive concurrently.
 
 Migrations live in:
 
@@ -540,6 +607,7 @@ The terminal session occupies the only active slot, so the browser session shoul
 - Queue position is based on the first time a session enters the waiting zone. It is stable across repeated polls for the same session.
 - Polling interval is waiting room configuration. The Admission Service returns it in the status response, and the UI uses it to schedule the next status check.
 - The session token is set by the server as an HTTP-only cookie so client-side JavaScript does not need to create or manage identity.
+- Control Plane API authentication uses RFC 9421 HTTP Message Signatures. The implementation verifies signed request components, `Content-Digest`, public-key signatures, nonce replay protection, `expires`, and a maximum signature lifetime.
 
 ## Future Features And Limitations
 
@@ -555,7 +623,8 @@ This project is currently an MVP and intentionally leaves several production con
 
 ### Non-Functional
 
-- Add authentication and authorization for Control Plane admin APIs.
+- Add authorization for Control Plane admin APIs.
+- Replace local filesystem public-key lookup with production key management and rotation.
 - Add automated tests for service, repository, Redis Function, and route behavior.
 - Improve Admission Service error handling and API response contracts.
 - Replace TTL-only config cache invalidation with event-based updates, streaming, or pub/sub.

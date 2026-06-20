@@ -30,3 +30,9 @@ src/controlplane/bin/
 
 # Local scratch folders
 playground/
+
+*.key
+testdriver
+
+*.env
+

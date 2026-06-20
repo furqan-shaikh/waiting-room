@@ -78,6 +78,12 @@ type WaitingRoomStatus struct {
 	QueuePosition                 int64  `json:"queuePosition"`
 }
 
+type Nonce struct {
+	KeyId      string
+	NonceValue string
+	CreatedAt  time.Time
+}
+
 func (e *ValidationError) Error() string {
 	messages := make([]string, 0, len(e.Messages))
 	for _, message := range e.Messages {

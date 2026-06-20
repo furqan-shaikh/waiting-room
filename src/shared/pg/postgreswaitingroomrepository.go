@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,16 +18,22 @@ type PgWaitingRoomRepository struct {
 }
 
 func NewPgWaitingRoomRepository() (*PgWaitingRoomRepository, error) {
-	databaseUrl := os.Getenv("PG_DATABASE_URL")
-	if databaseUrl == "" {
-		errorStr := "Environment Variable PG_DATABASE_URL is not set"
-		log.Printf("%s", errorStr)
-		return nil, errors.New(errorStr)
-	}
-	pgConnectionPool, err := pgxpool.New(context.Background(), databaseUrl)
-	if err != nil {
-		log.Printf("Unable to create connection pool: %v\n", err)
-		return nil, err
+	// databaseUrl := os.Getenv("PG_DATABASE_URL")
+	// if databaseUrl == "" {
+	// 	errorStr := "Environment Variable PG_DATABASE_URL is not set"
+	// 	log.Printf("%s", errorStr)
+	// 	return nil, errors.New(errorStr)
+	// }
+	// pgConnectionPool, err := pgxpool.New(context.Background(), databaseUrl)
+	// if err != nil {
+	// 	log.Printf("Unable to create connection pool: %v\n", err)
+	// 	return nil, err
+	// }
+	pgConnectionPool = GetPostgreslient()
+	if pgConnectionPool == nil {
+		message := "Unable to create Pg WaitingRoom Repository"
+		log.Printf(message)
+		return nil, errors.New(message)
 	}
 	log.Printf("Successfully created Pg WaitingRoom Repository")
 	return &PgWaitingRoomRepository{pgConnectionPool: pgConnectionPool}, nil

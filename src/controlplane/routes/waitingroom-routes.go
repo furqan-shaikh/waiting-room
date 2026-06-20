@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"waitingroom/controlplane/authn"
 	"waitingroom/controlplane/services"
 	"waitingroom/shared/models"
 )
@@ -27,9 +28,14 @@ func RegisterRoutes(r chi.Router, service *services.WaitingRoomService) error {
 }
 
 func createWaitingRoom(w http.ResponseWriter, r *http.Request) {
+	userPrincipal, err := authn.GetUserPrincipal(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	var createWaitingRoomRequest models.CreateWaitingRoomRequest
-	log.Printf("Received createWaitingRoom request")
-	err := json.NewDecoder(r.Body).Decode(&createWaitingRoomRequest)
+	log.Printf("Received createWaitingRoom request for user: %v", userPrincipal.Id)
+	err = json.NewDecoder(r.Body).Decode(&createWaitingRoomRequest)
 	if err != nil {
 		log.Printf("Failed to decode request json: %v", err)
 		handleErrorResponse(w, "Failed to decode request json", http.StatusBadRequest, models.BadRequestCode, []models.ResponseErrorDetailItem{})
@@ -64,6 +70,13 @@ func createWaitingRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func getWaitingRoom(w http.ResponseWriter, r *http.Request) {
+	userPrincipal, err := authn.GetUserPrincipal(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	log.Printf("Received getWaitingRoom request for user: %v", userPrincipal.Id)
+
 	roomId := chi.URLParam(r, "roomId")
 	waitingRoom, err := waitingRoomService.GetWaitingRoom(r.Context(), models.GetWaitingRoomRequest{RoomId: roomId})
 
@@ -83,8 +96,15 @@ func getWaitingRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteWaitingRoom(w http.ResponseWriter, r *http.Request) {
+	userPrincipal, err := authn.GetUserPrincipal(r.Context())
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	log.Printf("Received deleteWaitingRoom request for user: %v", userPrincipal.Id)
+
 	roomId := chi.URLParam(r, "roomId")
-	_, err := waitingRoomService.DeleteWaitingRoom(r.Context(), models.DeleteWaitingRoomRequest{RoomId: roomId, IsSoftDelete: true})
+	_, err = waitingRoomService.DeleteWaitingRoom(r.Context(), models.DeleteWaitingRoomRequest{RoomId: roomId, IsSoftDelete: true})
 	if err != nil {
 		log.Printf("Error in deleting waiting room: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

@@ -5,4 +5,4 @@ CREATE TABLE IF NOT EXISTS waitingrooms(
     max_active_users_count INTEGER NOT NULL CHECK (max_active_users_count > 0),
     origin_application TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DELETED'))
-)
+);
