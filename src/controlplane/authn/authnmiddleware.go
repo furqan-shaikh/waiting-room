@@ -29,7 +29,7 @@ const ContentLengthHeader = "Content-Length"
 const Algorithm = "rsa-v1_5-sha256"
 const DerivedComponents = "\"@method\" \"@target-uri\" \"@authority\""
 const Headers = "\"content-type\" \"content-length\" \"content-digest\""
-const MaxExpiryDuration = 15 * time.Minute
+const MaxExpiryDuration = 15
 
 var ValidDerivedComponents = []string{"@method", "@target-uri", "@authority"}
 var ValidHeaderComponents = []string{"content-type", "content-length", "content-digest"}
@@ -78,6 +78,8 @@ type Component struct {
 type ApiAuthnConfig struct {
 	KeyLookUpRepository keyrepository.KeyLookup
 	NonceRepository     pg.NonceRepository
+	AllowedClockSkew    int
+	MaxExpiryDuration   int
 }
 
 func ApiAuthn(config ApiAuthnConfig) func(next http.Handler) http.Handler {
@@ -92,7 +94,7 @@ func ApiAuthn(config ApiAuthnConfig) func(next http.Handler) http.Handler {
 			}
 
 			// Verify Signature Expiration
-			isSignatureExpired := verifyExpiry(r, component)
+			isSignatureExpired := verifyExpiry(r, component, config)
 			if isSignatureExpired {
 				message := fmt.Sprintf("Signature expired. Created: %v , Expired: %v\n", component.SignatureInputComponent.Created, component.SignatureInputComponent.Expires)
 				log.Printf(message)
@@ -256,17 +258,25 @@ func getTargetUri(r *http.Request) string {
 	return scheme + "://" + r.Host + r.URL.RequestURI()
 }
 
-// The Verifier rejects signature which is past the expiration time in the "expires" timestamp
-// Verifier rejects signature if "expires" timestamp is less than "created" timestamp
-// Verifier must enforce a maximum signature lifetime. Expires must be within 15 mins and not greater. If expires > 15 mins than created, reject
-func verifyExpiry(r *http.Request, component Component) bool {
-	now := time.Now().Unix()
+func verifyExpiry(r *http.Request, component Component, config ApiAuthnConfig) bool {
+	// Inputs: created, expires, current, MaxExpiryDuration, MaxAllowedClockSkew
+
+	nowTime := time.Now()
 	createdTime := time.Unix(component.SignatureInputComponent.Created, 0)
 	expiresTime := time.Unix(component.SignatureInputComponent.Expires, 0)
 
-	return now > component.SignatureInputComponent.Expires ||
+	// Expires if:
+	// 1. current > expires + AllowedClockSkew
+	// 2. expires <= created
+	// 3. expires - created > MaxExpiryDuration
+	// 4. created > current + AllowedClockSkew
+	// 5. expires > current + MaxExpiryDuration + MaxAllowedClockSkew
+
+	return nowTime.After(expiresTime.Add(time.Duration(config.AllowedClockSkew)*time.Minute)) ||
 		component.SignatureInputComponent.Expires <= component.SignatureInputComponent.Created ||
-		expiresTime.Sub(createdTime) > MaxExpiryDuration
+		expiresTime.Sub(createdTime) > time.Duration(config.MaxExpiryDuration)*time.Minute ||
+		createdTime.After(nowTime.Add(time.Duration(config.AllowedClockSkew)*time.Minute)) ||
+		expiresTime.After(nowTime.Add(time.Duration(config.AllowedClockSkew+config.MaxExpiryDuration)*time.Minute))
 
 }
 

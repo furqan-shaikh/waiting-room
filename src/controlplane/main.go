@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -38,7 +39,10 @@ func main() {
 		return
 	}
 	r.Use(authn.ApiAuthn(authn.ApiAuthnConfig{KeyLookUpRepository: keyRepository,
-		NonceRepository: nonceRepository}))
+		NonceRepository:   nonceRepository,
+		AllowedClockSkew:  getAllowedClockSkew(),
+		MaxExpiryDuration: getMaxExpiryDuration(),
+	}))
 
 	waitingRoomService, err := services.NewWaitingRoomService(context.Background())
 	if err != nil {
@@ -80,4 +84,59 @@ func getKeyLookupRepository() (keyrepository.KeyLookup, error) {
 
 func isSupportedKeyLookupType() bool {
 	return os.Getenv("KEY_LOOKUP_TYPE") == "local"
+}
+
+func getAllowedClockSkew() int {
+	allowedClockSkew := os.Getenv("ALLOWED_CLOCK_SKEW")
+	if allowedClockSkew == "" {
+		log.Printf("ALLOWED_CLOCK_SKEW is empty. Setting to default value")
+		return authn.MaxAllowedClockSkew
+	}
+	return getValidClockSkew(allowedClockSkew)
+}
+
+func getValidClockSkew(allowedClockSkew string) int {
+	// if not a valid number or greater than max allowed clock skew
+	num, err := strconv.Atoi(allowedClockSkew)
+	if err != nil {
+		log.Printf("ALLOWED_CLOCK_SKEW is not a valid number. Setting to default value")
+		return authn.MaxAllowedClockSkew
+	}
+	if num > authn.MaxAllowedClockSkew {
+		log.Printf("ALLOWED_CLOCK_SKEW is not in a  valid value range")
+		return authn.MaxAllowedClockSkew
+	}
+	if num <= 0 {
+		log.Printf("ALLOWED_CLOCK_SKEW must be greater than 0")
+		return authn.MaxAllowedClockSkew
+	}
+	return num
+}
+
+func getMaxExpiryDuration() int {
+	maxExpiryDuration := os.Getenv("MAX_EXPIRY_DURATION")
+	if maxExpiryDuration == "" {
+		log.Printf("MAX_EXPIRY_DURATION is empty. Setting to default value")
+		return authn.MaxExpiryDuration
+	}
+	return getValidMaxExpiryDuration(maxExpiryDuration)
+}
+
+func getValidMaxExpiryDuration(maxExpiryDuration string) int {
+	// if not a valid number or greater than max Expiry Duration
+	num, err := strconv.Atoi(maxExpiryDuration)
+	if err != nil {
+		log.Printf("MAX_EXPIRY_DURATION is not a valid number. Setting to default value")
+		return authn.MaxExpiryDuration
+	}
+	if num > authn.MaxExpiryDuration {
+		log.Printf("MAX_EXPIRY_DURATION is not in a  valid value range")
+		return authn.MaxExpiryDuration
+	}
+
+	if num <= 0 {
+		log.Printf("MAX_EXPIRY_DURATION must be greater than 0")
+		return authn.MaxExpiryDuration
+	}
+	return num
 }

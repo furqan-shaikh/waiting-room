@@ -184,9 +184,13 @@ PG_DATABASE_URL=postgres://wr:wr@localhost:5432/waitingroomdb?sslmode=disable
 KEY_LOOKUP_TYPE=local
 KEY_LOOKUP_TYPE_LOCAL_PATH=./testdriver
 KEY_LOOKUP_TYPE_LOCAL_EXTENSION=.key
+ALLOWED_CLOCK_SKEW=1
+MAX_EXPIRY_DURATION=15
 ```
 
 `KEY_LOOKUP_TYPE=local` tells the authentication middleware to use the local filesystem public-key repository. When running `make run` from `src/controlplane`, `./testdriver` resolves to `src/controlplane/testdriver`.
+
+`ALLOWED_CLOCK_SKEW` and `MAX_EXPIRY_DURATION` are in minutes. `ALLOWED_CLOCK_SKEW` allows small client/server clock differences during HTTP Message Signature verification. `MAX_EXPIRY_DURATION` controls the maximum allowed duration between the signature `created` and `expires` timestamps.
 
 Local `.env` files are ignored by git. Keep machine-specific values and secrets out of the repository.
 
@@ -248,6 +252,8 @@ docker run --rm \
   -e KEY_LOOKUP_TYPE="local" \
   -e KEY_LOOKUP_TYPE_LOCAL_PATH="/control-plane/testdriver" \
   -e KEY_LOOKUP_TYPE_LOCAL_EXTENSION=".key" \
+  -e ALLOWED_CLOCK_SKEW="1" \
+  -e MAX_EXPIRY_DURATION="15" \
   waiting-room/control-plane:0.1
 ```
 
@@ -349,7 +355,7 @@ cd src/controlplane/testdriver
 go run .
 ```
 
-Keep the test driver's `expires` value within the configured 15-minute maximum signature lifetime when testing the success plus replay path.
+Keep the test driver's `expires` value within the configured `MAX_EXPIRY_DURATION` when testing the success plus replay path. The default maximum signature lifetime is 15 minutes.
 
 ### Create Waiting Room
 
@@ -607,7 +613,7 @@ The terminal session occupies the only active slot, so the browser session shoul
 - Queue position is based on the first time a session enters the waiting zone. It is stable across repeated polls for the same session.
 - Polling interval is waiting room configuration. The Admission Service returns it in the status response, and the UI uses it to schedule the next status check.
 - The session token is set by the server as an HTTP-only cookie so client-side JavaScript does not need to create or manage identity.
-- Control Plane API authentication uses RFC 9421 HTTP Message Signatures. The implementation verifies signed request components, `Content-Digest`, public-key signatures, nonce replay protection, `expires`, and a maximum signature lifetime.
+- Control Plane API authentication uses RFC 9421 HTTP Message Signatures. The implementation verifies signed request components, `Content-Digest`, public-key signatures, nonce replay protection, `expires`, allowed clock skew, and a configurable maximum signature lifetime.
 
 ## Future Features And Limitations
 
