@@ -8,6 +8,7 @@ import (
 type contextKey string
 
 const userPrincipalKey contextKey = "user"
+const MaxAllowedClockSkew = 1
 
 type UserPrincipal struct {
 	Id                   string

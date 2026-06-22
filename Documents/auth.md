@@ -305,22 +305,25 @@ This prevents invalid signatures from filling the nonce table.
 
 ## Signature Expiry
 
-The signer includes `expires` in `Signature-Input`. `expires` is a Unix timestamp representing when the signer considers the signature invalid.
+The signer includes `created` and `expires` in `Signature-Input`. `created` is the Unix timestamp when the signature was generated. `expires` is the Unix timestamp when the signer considers the signature invalid.
 
 The verifier rejects the request when:
 
 - `expires` is missing.
-- current time is greater than `expires`.
+- current time is greater than `expires + ALLOWED_CLOCK_SKEW`.
 - `expires <= created`.
-- `expires - created` is greater than the configured maximum signature lifetime.
+- `expires - created` is greater than `MAX_EXPIRY_DURATION`.
+- `created` is greater than `current time + ALLOWED_CLOCK_SKEW`.
+- `expires` is greater than `current time + MAX_EXPIRY_DURATION + ALLOWED_CLOCK_SKEW`.
 
-The current maximum signature lifetime is:
+The current defaults are:
 
 ```text
-15 minutes
+ALLOWED_CLOCK_SKEW=1 minute
+MAX_EXPIRY_DURATION=15 minutes
 ```
 
-Because `expires` is part of `@signature-params`, an attacker cannot extend the expiry without breaking signature verification.
+Both values are configured in minutes. `ALLOWED_CLOCK_SKEW` allows small client/server clock differences. `MAX_EXPIRY_DURATION` caps the useful lifetime of a captured signature. Because `created` and `expires` are part of `@signature-params`, an attacker cannot modify either timestamp without breaking signature verification.
 
 ## Local Test Driver
 
@@ -337,7 +340,7 @@ cd src/controlplane/testdriver
 go run .
 ```
 
-The driver generates a key pair, writes the public key file used by the local filesystem key repository, signs a `POST /waitingRooms` request, and sends it twice. Use an `expires` value within 15 minutes of `created` to test the success plus replay path; use an `expires` value beyond 15 minutes to test maximum-lifetime rejection.
+The driver generates a key pair, writes the public key file used by the local filesystem key repository, signs a `POST /waitingRooms` request, and sends it twice. Use an `expires` value within `MAX_EXPIRY_DURATION` of `created` to test the success plus replay path; use an `expires` value beyond `MAX_EXPIRY_DURATION` to test maximum-lifetime rejection.
 
 ## Testing
 
@@ -348,9 +351,11 @@ Important cases:
 3. Bad signature with a new nonce does not persist the nonce.
 4. Concurrent replay of the same signed request allows only one request to succeed.
 5. Missing `expires` returns `401`.
-6. Expired signature returns `401`.
+6. Expired signature beyond the allowed clock skew returns `401`.
 7. `expires <= created` returns `401`.
 8. Signature lifetime over the configured maximum returns `401`.
+9. `created` too far in the future returns `401`.
+10. `expires` too far in the future returns `401`.
 
 ## Future Authentication Methods
 
