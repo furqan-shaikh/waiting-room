@@ -48,6 +48,7 @@ type WaitingRoom struct {
 	ActiveSessionTtlSeconds  int       `json:"activeSessionTtlSeconds"`
 	WaitingSessionTtlSeconds int       `json:"waitingSessionTtlSeconds"`
 	PollingIntervalSeconds   int       `json:"pollingIntervalSeconds"`
+	OwnerId                  string    `json:"ownerId"`
 }
 
 type GetWaitingRoomRequest struct {

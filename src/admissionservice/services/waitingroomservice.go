@@ -7,21 +7,21 @@ import (
 	"time"
 
 	"waitingroom/shared/models"
-	"waitingroom/shared/pg"
 
 	"waitingroom/admissionservice/cache"
+	"waitingroom/admissionservice/dao"
 )
 
 type WaitingRoomServiceConfig struct {
 	CacheTTL time.Duration
 }
 type WaitingRoomService struct {
-	pgWaitingRoomRepository *pg.PgWaitingRoomRepository
+	pgWaitingRoomRepository *dao.PgWaitingRoomRepositoryDp
 	roomCacheManager        *cache.RoomCacheManager
 }
 
 func NewWaitingRoomService(ctx context.Context, config WaitingRoomServiceConfig) (*WaitingRoomService, error) {
-	pgWaitingRoomRepository, err := pg.NewPgWaitingRoomRepository()
+	pgWaitingRoomRepository, err := dao.NewPgWaitingRoomRepositoryDp()
 	if err != nil {
 		log.Printf("Failed to initialize NewPgWaitingRoomRepository: %v", err)
 		return nil, err

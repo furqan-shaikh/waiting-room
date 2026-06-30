@@ -63,7 +63,7 @@ func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Conte
 		return false, errors.New("Call NewRepository before invoking repository methods")
 	}
 	// construct insert parameterized query
-	query := `INSERT INTO waitingrooms (room_id, created_at, updated_at, max_active_users_count, origin_application, status, active_session_ttl_seconds, waiting_session_ttl_seconds, polling_interval_seconds) VALUES (@room_id, @created_at, @updated_at, @max_active_users_count, @origin_application, @status, @active_session_ttl_seconds, @waiting_session_ttl_seconds, @polling_interval_seconds)`
+	query := `INSERT INTO waitingrooms (room_id, created_at, updated_at, max_active_users_count, origin_application, status, active_session_ttl_seconds, waiting_session_ttl_seconds, polling_interval_seconds, owner_id) VALUES (@room_id, @created_at, @updated_at, @max_active_users_count, @origin_application, @status, @active_session_ttl_seconds, @waiting_session_ttl_seconds, @polling_interval_seconds, @owner_id)`
 	args := pgx.NamedArgs{
 		"room_id":                     request.RoomId,
 		"max_active_users_count":      request.MaxActiveUsersCount,
@@ -74,6 +74,7 @@ func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Conte
 		"active_session_ttl_seconds":  request.ActiveSessionTtlSeconds,
 		"waiting_session_ttl_seconds": request.WaitingSessionTtlSeconds,
 		"polling_interval_seconds":    request.PollingIntervalSeconds,
+		"owner_id":                    request.OwnerId,
 	}
 	log.Printf("Inserting waiting room into pg table: %v", request.RoomId)
 	_, err := pgrepository.pgConnectionPool.Exec(ctx, query, args)
@@ -85,7 +86,7 @@ func (pgrepository *PgWaitingRoomRepository) CreateWaitingRoom(ctx context.Conte
 	return true, nil
 }
 
-func (pgrepository *PgWaitingRoomRepository) GetWaitingRoom(ctx context.Context, request models.GetWaitingRoomRequest) (models.WaitingRoom, error) {
+func (pgrepository *PgWaitingRoomRepository) GetWaitingRoom(ctx context.Context, request models.GetWaitingRoomRequest, userPrincipal string) (models.WaitingRoom, error) {
 	if pgrepository.pgConnectionPool == nil {
 		return models.WaitingRoom{}, errors.New("Call NewRepository before invoking repository methods")
 	}
@@ -100,11 +101,13 @@ func (pgrepository *PgWaitingRoomRepository) GetWaitingRoom(ctx context.Context,
   					status, 
 					COALESCE(active_session_ttl_seconds, 0) AS active_session_ttl_seconds,
 					COALESCE(waiting_session_ttl_seconds, 0) AS waiting_session_ttl_seconds,
-					COALESCE(polling_interval_seconds, 0) AS polling_interval_seconds
-			  FROM waitingrooms WHERE room_id = @room_id AND status = @status`
+					COALESCE(polling_interval_seconds, 0) AS polling_interval_seconds,
+					owner_id
+			  FROM waitingrooms WHERE room_id = @room_id AND status = @status AND owner_id = @owner_id`
 	args := pgx.NamedArgs{
-		"room_id": request.RoomId,
-		"status":  models.StatusActive,
+		"room_id":  request.RoomId,
+		"status":   models.StatusActive,
+		"owner_id": userPrincipal,
 	}
 
 	rows, err := pgrepository.pgConnectionPool.Query(ctx, query, args)
@@ -124,7 +127,7 @@ func (pgrepository *PgWaitingRoomRepository) GetWaitingRoom(ctx context.Context,
 	return waitingRoom, nil
 }
 
-func (pgrepository *PgWaitingRoomRepository) DeleteWaitingRoom(ctx context.Context, request models.DeleteWaitingRoomRequest) (bool, error) {
+func (pgrepository *PgWaitingRoomRepository) DeleteWaitingRoom(ctx context.Context, request models.DeleteWaitingRoomRequest, userPrincipal string) (bool, error) {
 	if pgrepository.pgConnectionPool == nil {
 		return false, errors.New("Call NewRepository before invoking repository methods")
 	}
@@ -133,17 +136,19 @@ func (pgrepository *PgWaitingRoomRepository) DeleteWaitingRoom(ctx context.Conte
 		args  pgx.NamedArgs
 	)
 	if request.IsSoftDelete {
-		query = `UPDATE waitingrooms SET status = @status, updated_at = @updated_at WHERE room_id = @room_id`
+		query = `UPDATE waitingrooms SET status = @status, updated_at = @updated_at WHERE room_id = @room_id AND owner_id = @owner_id`
 		args = pgx.NamedArgs{
 			"status":     models.StatusDeleted,
 			"updated_at": time.Now().UTC(),
 			"room_id":    request.RoomId,
+			"owner_id":   userPrincipal,
 		}
 
 	} else {
-		query = `DELETE FROM waitingrooms WHERE room_id = @room_id`
+		query = `DELETE FROM waitingrooms WHERE room_id = @room_id AND owner_id = @owner_id`
 		args = pgx.NamedArgs{
-			"room_id": request.RoomId,
+			"room_id":  request.RoomId,
+			"owner_id": userPrincipal,
 		}
 	}
 
