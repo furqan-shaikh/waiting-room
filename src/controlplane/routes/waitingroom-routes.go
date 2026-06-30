@@ -43,7 +43,7 @@ func createWaitingRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("CreateWaitingRoom: %v", createWaitingRoomRequest)
-	waitingRoom, err := waitingRoomService.CreateWaitingRoom(r.Context(), createWaitingRoomRequest)
+	waitingRoom, err := waitingRoomService.CreateWaitingRoom(r.Context(), createWaitingRoomRequest, userPrincipal)
 	if err != nil {
 		if validationError, ok := errors.AsType[*models.ValidationError](err); ok {
 			log.Printf("Validation Errors in creating waiting room: %v", validationError)
@@ -78,7 +78,7 @@ func getWaitingRoom(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received getWaitingRoom request for user: %v", userPrincipal.Id)
 
 	roomId := chi.URLParam(r, "roomId")
-	waitingRoom, err := waitingRoomService.GetWaitingRoom(r.Context(), models.GetWaitingRoomRequest{RoomId: roomId})
+	waitingRoom, err := waitingRoomService.GetWaitingRoom(r.Context(), models.GetWaitingRoomRequest{RoomId: roomId}, userPrincipal)
 
 	if err != nil {
 		if notFoundError, ok := errors.AsType[*models.NotFoundError](err); ok {
@@ -104,7 +104,7 @@ func deleteWaitingRoom(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received deleteWaitingRoom request for user: %v", userPrincipal.Id)
 
 	roomId := chi.URLParam(r, "roomId")
-	_, err = waitingRoomService.DeleteWaitingRoom(r.Context(), models.DeleteWaitingRoomRequest{RoomId: roomId, IsSoftDelete: true})
+	_, err = waitingRoomService.DeleteWaitingRoom(r.Context(), models.DeleteWaitingRoomRequest{RoomId: roomId, IsSoftDelete: true}, userPrincipal)
 	if err != nil {
 		log.Printf("Error in deleting waiting room: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"waitingroom/controlplane/authn"
 	"waitingroom/shared/models"
 	"waitingroom/shared/pg"
 
@@ -36,14 +37,14 @@ func NewWaitingRoomService(ctx context.Context) (*WaitingRoomService, error) {
 	return &WaitingRoomService{pgWaitingRoomRepository: pgWaitingRoomRepository}, nil
 }
 
-func (svc *WaitingRoomService) CreateWaitingRoom(ctx context.Context, request models.CreateWaitingRoomRequest) (models.WaitingRoom, error) {
+func (svc *WaitingRoomService) CreateWaitingRoom(ctx context.Context, request models.CreateWaitingRoomRequest, userPrincipal authn.UserPrincipal) (models.WaitingRoom, error) {
 	// Validate the request
 	validationMessages := validateWaitingRoomRequest(request)
 	if len(validationMessages) > 0 {
 		return models.WaitingRoom{}, &models.ValidationError{Messages: validationMessages}
 	}
 	log.Printf("Successfully validated the WaitingRoomRequest")
-	waitingRoom := getWaitingRoomEntity(request)
+	waitingRoom := getWaitingRoomEntity(request, userPrincipal)
 	_, err := svc.pgWaitingRoomRepository.CreateWaitingRoom(ctx, waitingRoom)
 	if err != nil {
 		log.Printf("Failed to create waiting room: %v", err)
@@ -52,7 +53,7 @@ func (svc *WaitingRoomService) CreateWaitingRoom(ctx context.Context, request mo
 	return waitingRoom, nil
 }
 
-func getWaitingRoomEntity(request models.CreateWaitingRoomRequest) models.WaitingRoom {
+func getWaitingRoomEntity(request models.CreateWaitingRoomRequest, userPrincipal authn.UserPrincipal) models.WaitingRoom {
 	room_id := uuid.New().String()
 	nowUTC := time.Now().UTC()
 	activeSessionTtlInSeconds := models.DefaultActiveSessionTtlInSeconds
@@ -80,11 +81,12 @@ func getWaitingRoomEntity(request models.CreateWaitingRoomRequest) models.Waitin
 		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
 		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
 		PollingIntervalSeconds:   pollingIntervalSeconds,
+		OwnerId:                  userPrincipal.Id,
 	}
 }
 
-func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request models.GetWaitingRoomRequest) (models.WaitingRoom, error) {
-	waitingRoom, err := svc.pgWaitingRoomRepository.GetWaitingRoom(ctx, request)
+func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request models.GetWaitingRoomRequest, userPrincipal authn.UserPrincipal) (models.WaitingRoom, error) {
+	waitingRoom, err := svc.pgWaitingRoomRepository.GetWaitingRoom(ctx, request, userPrincipal.Id)
 	if err != nil {
 		log.Printf("Failed to get waiting room: %v", err)
 		return models.WaitingRoom{}, err
@@ -113,12 +115,13 @@ func (svc *WaitingRoomService) GetWaitingRoom(ctx context.Context, request model
 		ActiveSessionTtlSeconds:  activeSessionTtlInSeconds,
 		WaitingSessionTtlSeconds: waitingSessionTtlInSeconds,
 		PollingIntervalSeconds:   pollingIntervalSeconds,
+		OwnerId:                  userPrincipal.Id,
 	}
 	return newWaitingRoomModel, nil
 }
 
-func (svc *WaitingRoomService) DeleteWaitingRoom(ctx context.Context, request models.DeleteWaitingRoomRequest) (bool, error) {
-	status, err := svc.pgWaitingRoomRepository.DeleteWaitingRoom(ctx, request)
+func (svc *WaitingRoomService) DeleteWaitingRoom(ctx context.Context, request models.DeleteWaitingRoomRequest, userPrincipal authn.UserPrincipal) (bool, error) {
+	status, err := svc.pgWaitingRoomRepository.DeleteWaitingRoom(ctx, request, userPrincipal.Id)
 	if err != nil {
 		log.Printf("Failed to delete waiting room: %v", err)
 		return status, err
